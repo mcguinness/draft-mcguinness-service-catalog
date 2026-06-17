@@ -3,8 +3,8 @@ title: "Per-User Service Catalog for Agents"
 abbrev: "Service Catalog"
 docName: "draft-mcguinness-service-catalog-latest"
 category: "std"
-workgroup: "Web Authorization Protocol"
-area: "Security"
+# workgroup: "Web Authorization Protocol"
+# area: "Security"
 ipr: "trust200902"
 keyword:
   - "OAuth 2.0"
@@ -14,10 +14,10 @@ keyword:
   - "MCP"
   - "Authorization"
 venue:
-  group: "Web Authorization Protocol"
-  type: "Working Group"
-  mail: "oauth@ietf.org"
-  arch: "https://mailarchive.ietf.org/arch/browse/oauth/"
+#  group: "Web Authorization Protocol"
+#  type: "Working Group"
+#  mail: "oauth@ietf.org"
+#  arch: "https://mailarchive.ietf.org/arch/browse/oauth/"
 
 author:
  -
