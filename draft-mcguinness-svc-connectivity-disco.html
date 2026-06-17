@@ -1366,7 +1366,7 @@ svg {
           <p id="section-1-6.3.1"><strong>Presentation</strong> -- how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme (a bearer token, API key, or mutual TLS).<a href="#section-1-6.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-1-7">Separating these lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-7">Discovery is the catalog's own role; acquisition and presentation are the two layers carried by each connection method (<a href="#connection-object" class="auto internal xref">Section 5.6</a>). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.<a href="#section-1-7" class="pilcrow">¶</a></p>
 <p id="section-1-8">Beyond this, the design is deliberately general:<a href="#section-1-8" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-1-9.1">
@@ -1408,7 +1408,7 @@ svg {
             <p id="section-1.2-2.3.1">proof of current authorization -- a listed service, or a connection's <code>connected</code> status, does not guarantee a subsequent call will succeed (<a href="#availability" class="auto internal xref">Section 4.3.2</a>);<a href="#section-1.2-2.3.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-1.2-2.4">
-            <p id="section-1.2-2.4.1">a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting (<a href="#connection-object" class="auto internal xref">Section 5.6</a>).<a href="#section-1.2-2.4.1" class="pilcrow">¶</a></p>
+            <p id="section-1.2-2.4.1">a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting (<a href="#authoritative" class="auto internal xref">Section 5.6.1</a>).<a href="#section-1.2-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
 </section>
@@ -1447,7 +1447,8 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 </dd>
       <dd class="break"></dd>
 </dl>
-<p id="section-2-4">All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs <span>[<a href="#RFC8259" class="cite xref">RFC8259</a>]</span> unless otherwise stated.<a href="#section-2-4" class="pilcrow">¶</a></p>
+<p id="section-2-4">All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs <span>[<a href="#RFC3986" class="cite xref">RFC3986</a>]</span> unless otherwise stated.<a href="#section-2-4" class="pilcrow">¶</a></p>
+<p id="section-2-5">In this document, the <em>catalog</em> (the returned document) and the <em>Service Catalog Endpoint</em> are the concrete artifacts; <em>service connectivity discovery</em> is the protocol this document defines.<a href="#section-2-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="processing-model">
@@ -1525,7 +1526,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
         </h3>
 <p id="section-4.2-1">The client retrieves the catalog by sending an HTTP <code>GET</code> request to the Service Catalog Endpoint.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
 <p id="section-4.2-2">The client <span class="bcp14">MUST</span> authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. As a mandatory-to-implement baseline that any client can rely on, a Catalog Provider <span class="bcp14">MUST</span> accept an OAuth 2.0 access token presented with the <code>Authorization</code> request header field and the <code>Bearer</code> scheme <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>, where the token's audience identifies the Catalog Provider; it <span class="bcp14">MAY</span> additionally accept other authentication methods. A client <span class="bcp14">SHOULD</span> use the bearer baseline unless it has out-of-band knowledge of another supported method. If the request is not authenticated and authentication is required, the Catalog Provider <span class="bcp14">MUST</span> return an HTTP 401 (Unauthorized) response.<a href="#section-4.2-2" class="pilcrow">¶</a></p>
-<p id="section-4.2-3">A client <span class="bcp14">MAY</span> constrain the response with the filtering query parameters in <a href="#filtering" class="auto internal xref">Section 4.2.1</a>, and page through a large result with the pagination query parameters in <a href="#pagination" class="auto internal xref">Section 4.2.2</a>. A Catalog Provider <span class="bcp14">MUST</span> ignore any query parameter it does not support or understand. All query parameter names and values are case sensitive.<a href="#section-4.2-3" class="pilcrow">¶</a></p>
+<p id="section-4.2-3">A client <span class="bcp14">MAY</span> constrain the response with the filtering query parameters in <a href="#filtering" class="auto internal xref">Section 4.2.1</a>, and page through a large result with the pagination query parameters in <a href="#pagination" class="auto internal xref">Section 4.2.2</a>. A Catalog Provider <span class="bcp14">MUST</span> ignore any query parameter it does not support or understand; a provider that does support a parameter applies it as specified, including rejecting an invalid <code>limit</code> or <code>cursor</code> (<a href="#pagination" class="auto internal xref">Section 4.2.2</a>). All query parameter names and values are case sensitive.<a href="#section-4.2-3" class="pilcrow">¶</a></p>
 <p id="section-4.2-4">The following is an example request for the user's email services:<a href="#section-4.2-4" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-4.2-5">
 <pre>
@@ -1586,7 +1587,7 @@ Accept: application/json
 <span class="break"></span><dl class="dlParallel" id="section-4.2.2-2">
             <dt id="section-4.2.2-2.1">limit:</dt>
             <dd style="margin-left: 1.5em" id="section-4.2.2-2.2">
-              <p id="section-4.2.2-2.2.1">A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider <span class="bcp14">MAY</span> return fewer and <span class="bcp14">MAY</span> impose its own maximum page size; a <code>limit</code> greater than that maximum is treated as the maximum. A <code>limit</code> that is zero, negative, or not an integer is invalid and <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 4.3.3</a>).<a href="#section-4.2.2-2.2.1" class="pilcrow">¶</a></p>
+              <p id="section-4.2.2-2.2.1">A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider <span class="bcp14">MAY</span> return fewer and <span class="bcp14">MAY</span> impose its own maximum page size; a <code>limit</code> greater than that maximum is treated as the maximum. A Catalog Provider that supports the <code>limit</code> parameter <span class="bcp14">MUST</span> reject a <code>limit</code> that is zero, negative, or not an integer with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 4.3.3</a>).<a href="#section-4.2.2-2.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-4.2.2-2.3">cursor:</dt>
@@ -1995,7 +1996,7 @@ WWW-Authenticate: Bearer
                 <p id="section-5.6-7.2.2.1.1">Allowed types: the value <span class="bcp14">MUST</span> be of OpenAPI type <code>http</code>, <code>apiKey</code>, or <code>mutualTLS</code> -- for example <code>{"type": "http", "scheme": "bearer"}</code>, <code>{"type": "apiKey", "in": "header", "name": "X-API-Key"}</code>, or <code>{"type": "mutualTLS"}</code>. The <code>oauth2</code> and <code>openIdConnect</code> types <span class="bcp14">MUST NOT</span> appear, because credential acquisition (including OAuth flows) is expressed by the <code>type</code> member.<a href="#section-5.6-7.2.2.1.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-5.6-7.2.2.2">
-                <p id="section-5.6-7.2.2.2.1">When omitted: for acquisition types that yield an access token (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>) the credential is presented as an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; otherwise the client determines presentation from the service's referenced security schemes (see <code>security_scheme</code>).<a href="#section-5.6-7.2.2.2.1" class="pilcrow">¶</a></p>
+                <p id="section-5.6-7.2.2.2.1">When omitted: presentation is resolved using the precedence order defined under <code>security_scheme</code> below.<a href="#section-5.6-7.2.2.2.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-5.6-7.2.2.3">
                 <p id="section-5.6-7.2.2.3.1">No restatement: the catalog <span class="bcp14">SHOULD NOT</span> inline a <code>present</code> value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via <code>service-desc</code>, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference (<a href="#intent" class="auto internal xref">Section 7</a>).<a href="#section-5.6-7.2.2.3.1" class="pilcrow">¶</a></p>
@@ -2011,7 +2012,7 @@ WWW-Authenticate: Bearer
           <dd class="break"></dd>
 <dt id="section-5.6-7.3">security_scheme:</dt>
           <dd style="margin-left: 1.5em" id="section-5.6-7.4">
-            <p id="section-5.6-7.4.1"><span class="bcp14">OPTIONAL</span>. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI <code>securitySchemes</code> object, or the <code>securitySchemes</code> of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to <code>mcp</code> services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: an explicit <code>present</code>; otherwise the named <code>security_scheme</code> resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>.<a href="#section-5.6-7.4.1" class="pilcrow">¶</a></p>
+            <p id="section-5.6-7.4.1"><span class="bcp14">OPTIONAL</span>. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI <code>securitySchemes</code> object, or the <code>securitySchemes</code> of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to <code>mcp</code> services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: (1) an explicit <code>present</code>; (2) the named <code>security_scheme</code> resolved against the service's referenced descriptor; (3) for OAuth-based acquisition types, an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; (4) otherwise, the security schemes published in the service's referenced descriptor.<a href="#section-5.6-7.4.1" class="pilcrow">¶</a></p>
 </dd>
         <dd class="break"></dd>
 </dl>
@@ -2232,10 +2233,6 @@ Cache-Control: private, max-age=60
       "name": "Calendar API",
       "categories": ["calendar"],
       "base_uri": "https://api.calendar.example",
-      "links": [
-        {"rel": "service-desc",
-         "href": "https://api.calendar.example/openapi.json"}
-      ],
       "connections": [
         {
           "type": "pre_authorized",
@@ -2823,6 +2820,10 @@ Cache-Control: private, max-age=60
 <dt id="RFC3339">[RFC3339]</dt>
         <dd>
 <span class="refAuthor">Klyne, G.</span> and <span class="refAuthor">C. Newman</span>, <span class="refTitle">"Date and Time on the Internet: Timestamps"</span>, <span class="seriesInfo">RFC 3339</span>, <span class="seriesInfo">DOI 10.17487/RFC3339</span>, <time datetime="2002-07" class="refDate">July 2002</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc3339">https://www.rfc-editor.org/info/rfc3339</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC3986">[RFC3986]</dt>
+        <dd>
+<span class="refAuthor">Berners-Lee, T.</span>, <span class="refAuthor">Fielding, R.</span>, and <span class="refAuthor">L. Masinter</span>, <span class="refTitle">"Uniform Resource Identifier (URI): Generic Syntax"</span>, <span class="seriesInfo">STD 66</span>, <span class="seriesInfo">RFC 3986</span>, <span class="seriesInfo">DOI 10.17487/RFC3986</span>, <time datetime="2005-01" class="refDate">January 2005</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc3986">https://www.rfc-editor.org/info/rfc3986</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 <dt id="RFC6749">[RFC6749]</dt>
         <dd>

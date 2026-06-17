@@ -188,7 +188,9 @@ Table of Contents
       service, expressed as an OpenAPI [OPENAPI] security scheme (a
       bearer token, API key, or mutual TLS).
 
-   Separating these lets one model describe OAuth, API keys, mutual TLS,
+   Discovery is the catalog's own role; acquisition and presentation are
+   the two layers carried by each connection method (Section 5.6).
+   Separating them lets one model describe OAuth, API keys, mutual TLS,
    pre-provisioned credentials, and future agent credential models
    without inventing a new object per mechanism; OAuth 2.0 is not
    assumed.
@@ -248,7 +250,7 @@ Table of Contents
    *  a substitute for OAuth 2.0 Protected Resource Metadata or
       Authorization Server Metadata -- those remain the authoritative
       source for endpoints and policy, and a client re-anchors to them
-      before acting (Section 5.6).
+      before acting (Section 5.6.1).
 
 2.  Conventions and Definitions
 
@@ -284,7 +286,11 @@ Table of Contents
 
    All members and string values defined by this document are case
    sensitive unless otherwise stated.  All URIs are absolute URIs
-   [RFC8259] unless otherwise stated.
+   [RFC3986] unless otherwise stated.
+
+   In this document, the _catalog_ (the returned document) and the
+   _Service Catalog Endpoint_ are the concrete artifacts; _service
+   connectivity discovery_ is the protocol this document defines.
 
 3.  Overview
 
@@ -382,8 +388,10 @@ Table of Contents
    A client MAY constrain the response with the filtering query
    parameters in Section 4.2.1, and page through a large result with the
    pagination query parameters in Section 4.2.2.  A Catalog Provider
-   MUST ignore any query parameter it does not support or understand.
-   All query parameter names and values are case sensitive.
+   MUST ignore any query parameter it does not support or understand; a
+   provider that does support a parameter applies it as specified,
+   including rejecting an invalid limit or cursor (Section 4.2.2).  All
+   query parameter names and values are case sensitive.
 
    The following is an example request for the user's email services:
 
@@ -455,8 +463,9 @@ Table of Contents
       the client wishes to receive in a single response.  The Catalog
       Provider MAY return fewer and MAY impose its own maximum page
       size; a limit greater than that maximum is treated as the maximum.
-      A limit that is zero, negative, or not an integer is invalid and
-      MUST be rejected with an HTTP 400 (Bad Request) (Section 4.3.3).
+      A Catalog Provider that supports the limit parameter MUST reject a
+      limit that is zero, negative, or not an integer with an HTTP 400
+      (Bad Request) (Section 4.3.3).
 
    cursor:  An opaque pagination cursor obtained from the next_cursor
       member (see Section 5.1) of a previous response.  The client MUST
@@ -965,12 +974,8 @@ Table of Contents
          types MUST NOT appear, because credential acquisition
          (including OAuth flows) is expressed by the type member.
 
-      *  When omitted: for acquisition types that yield an access token
-         (token_exchange, authorization_code, client_credentials,
-         id_jag) the credential is presented as an HTTP bearer token
-         [RFC6750]; otherwise the client determines presentation from
-         the service's referenced security schemes (see
-         security_scheme).
+      *  When omitted: presentation is resolved using the precedence
+         order defined under security_scheme below.
 
       *  No restatement: the catalog SHOULD NOT inline a present value
          that merely repeats security schemes already published in the
@@ -1004,9 +1009,11 @@ Table of Contents
       requirements directly.  This member does not apply to mcp
       services, whose authorization is defined by the MCP specification
       rather than by named security schemes.  Presentation is resolved
-      in this order: an explicit present; otherwise the named
-      security_scheme resolved against the descriptor; otherwise, for
-      OAuth-based acquisition types, an HTTP bearer token [RFC6750].
+      in this order: (1) an explicit present; (2) the named
+      security_scheme resolved against the service's referenced
+      descriptor; (3) for OAuth-based acquisition types, an HTTP bearer
+      token [RFC6750]; (4) otherwise, the security schemes published in
+      the service's referenced descriptor.
 
    *Per-user state.* The following members convey this connection's
    state for the authenticated user.
@@ -1323,10 +1330,6 @@ Table of Contents
          "name": "Calendar API",
          "categories": ["calendar"],
          "base_uri": "https://api.calendar.example",
-         "links": [
-           {"rel": "service-desc",
-            "href": "https://api.calendar.example/openapi.json"}
-         ],
          "connections": [
            {
              "type": "pre_authorized",
@@ -1926,6 +1929,11 @@ Table of Contents
    [RFC3339]  Klyne, G. and C. Newman, "Date and Time on the Internet:
               Timestamps", RFC 3339, DOI 10.17487/RFC3339, July 2002,
               <https://www.rfc-editor.org/info/rfc3339>.
+
+   [RFC3986]  Berners-Lee, T., Fielding, R., and L. Masinter, "Uniform
+              Resource Identifier (URI): Generic Syntax", STD 66,
+              RFC 3986, DOI 10.17487/RFC3986, January 2005,
+              <https://www.rfc-editor.org/info/rfc3986>.
 
    [RFC6749]  Hardt, D., Ed., "The OAuth 2.0 Authorization Framework",
               RFC 6749, DOI 10.17487/RFC6749, October 2012,
