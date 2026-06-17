@@ -7,7 +7,7 @@
 <title>Per-User Service Catalog for Agents</title>
 <meta content="Karl McGuinness" name="author">
 <meta content="
-       This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token. 
+       This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent. Each connection method separates how the client obtains a credential (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it presents that credential to the service (for example, a bearer token, an API key, or mutual TLS), reusing OpenAPI security scheme definitions for the latter; OAuth 2.0 is not assumed. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token. 
     " name="description">
 <meta content="xml2rfc 3.33.0" name="generator">
 <meta content="OAuth 2.0" name="keyword">
@@ -1083,7 +1083,7 @@ svg {
 <h1 id="title">Per-User Service Catalog for Agents</h1>
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
-<p id="section-abstract-1">This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-1">This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent. Each connection method separates how the client obtains a credential (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it presents that credential to the service (for example, a bearer token, an API key, or mutual TLS), reusing OpenAPI security scheme definitions for the latter; OAuth 2.0 is not assumed. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
 </section>
 <div id="status-of-memo">
 <section id="section-boilerplate.1">
@@ -1182,6 +1182,9 @@ svg {
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.4.2.2">
                     <p id="section-toc.1-1.3.2.4.2.2.1"><a href="#section-3.4.2" class="auto internal xref">3.4.2</a>.  <a href="#name-mcp" class="internal xref">mcp</a></p>
 </li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.4.2.3">
+                    <p id="section-toc.1-1.3.2.4.2.3.1"><a href="#section-3.4.3" class="auto internal xref">3.4.3</a>.  <a href="#name-a2a" class="internal xref">a2a</a></p>
+</li>
                 </ul>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.5">
@@ -1203,16 +1206,10 @@ svg {
                     <p id="section-toc.1-1.3.2.6.2.4.1"><a href="#section-3.6.4" class="auto internal xref">3.6.4</a>.  <a href="#name-id_jag" class="internal xref">id_jag</a></p>
 </li>
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.6.2.5">
-                    <p id="section-toc.1-1.3.2.6.2.5.1"><a href="#section-3.6.5" class="auto internal xref">3.6.5</a>.  <a href="#name-api_key" class="internal xref">api_key</a></p>
+                    <p id="section-toc.1-1.3.2.6.2.5.1"><a href="#section-3.6.5" class="auto internal xref">3.6.5</a>.  <a href="#name-none" class="internal xref">none</a></p>
 </li>
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.6.2.6">
-                    <p id="section-toc.1-1.3.2.6.2.6.1"><a href="#section-3.6.6" class="auto internal xref">3.6.6</a>.  <a href="#name-mtls" class="internal xref">mtls</a></p>
-</li>
-                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.6.2.7">
-                    <p id="section-toc.1-1.3.2.6.2.7.1"><a href="#section-3.6.7" class="auto internal xref">3.6.7</a>.  <a href="#name-none" class="internal xref">none</a></p>
-</li>
-                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.6.2.8">
-                    <p id="section-toc.1-1.3.2.6.2.8.1"><a href="#section-3.6.8" class="auto internal xref">3.6.8</a>.  <a href="#name-pre_authorized" class="internal xref">pre_authorized</a></p>
+                    <p id="section-toc.1-1.3.2.6.2.6.1"><a href="#section-3.6.6" class="auto internal xref">3.6.6</a>.  <a href="#name-pre_authorized" class="internal xref">pre_authorized</a></p>
 </li>
                 </ul>
 </li>
@@ -1317,10 +1314,10 @@ svg {
 <p id="section-1-4">The design is deliberately general:<a href="#section-1-4" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-1-5.1">
-          <p id="section-1-5.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>rest</code>) or an MCP server (<code>mcp</code>). MCP servers are first-class: a service of type <code>mcp</code> references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> so a client can learn the server's capabilities without connecting. Service types are extensible through an IANA registry.<a href="#section-1-5.1.1" class="pilcrow">¶</a></p>
+          <p id="section-1-5.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>rest</code>), an MCP server (<code>mcp</code>), or an A2A agent (<code>a2a</code>). MCP servers and A2A agents are first-class: such a service references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> or A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.<a href="#section-1-5.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-1-5.2">
-          <p id="section-1-5.2.1"><strong>Multiple authentication schemes.</strong> OAuth 2.0 is not assumed to be the only scheme. Connection methods describe OAuth 2.0 mechanisms (token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>) as well as non-OAuth schemes (API keys, mutual TLS, public access, and out-of-band credentials), and are extensible through an IANA registry.<a href="#section-1-5.2.1" class="pilcrow">¶</a></p>
+          <p id="section-1-5.2.1"><strong>Two-layer authentication, OAuth not assumed.</strong> Each connection method separates <em>credential acquisition</em> (its <code>type</code> -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, or none) from <em>credential presentation</em> (how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.<a href="#section-1-5.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-1-5.3">
           <p id="section-1-5.3.1"><strong>Capability-based discovery.</strong> Each service may carry well-known <strong>categories</strong> (such as <code>email</code> or <code>calendar</code>), so an agent can find a service by what it does rather than by name.<a href="#section-1-5.3.1" class="pilcrow">¶</a></p>
@@ -1378,7 +1375,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
         <dd class="break"></dd>
 <dt id="section-2-3.7">Connection Method:</dt>
         <dd style="margin-left: 1.5em" id="section-2-3.8">
-          <p id="section-2-3.8.1">A description of one way a client can obtain the credentials needed to call a service. Each connection method has a <code>type</code> drawn from the registry defined in <a href="#connection-type-registry" class="auto internal xref">Section 9.5</a>. OAuth 2.0 token issuance is one kind of connection method; others use static or out-of-band credentials.<a href="#section-2-3.8.1" class="pilcrow">¶</a></p>
+          <p id="section-2-3.8.1">A description of one way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition <code>type</code> (how the credential is obtained; see <a href="#connection-type-registry" class="auto internal xref">Section 9.5</a>) and a presentation (how the credential is presented to the service; see <a href="#connection-object" class="auto internal xref">Section 3.3.4</a>). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential or none.<a href="#section-2-3.8.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
@@ -1602,6 +1599,11 @@ Accept: application/json
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.20">
               <p id="section-3.3.2-2.20.1"><span class="bcp14">OPTIONAL</span>. Present only when <code>type</code> is <code>mcp</code>; see <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>.<a href="#section-3.3.2-2.20.1" class="pilcrow">¶</a></p>
 </dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.2-2.21">a2a:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.2-2.22">
+              <p id="section-3.3.2-2.22.1"><span class="bcp14">OPTIONAL</span>. Present only when <code>type</code> is <code>a2a</code>; see <a href="#type-a2a" class="auto internal xref">Section 3.4.3</a>.<a href="#section-3.3.2-2.22.1" class="pilcrow">¶</a></p>
+</dd>
           <dd class="break"></dd>
 </dl>
 <p id="section-3.3.2-3">The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.<a href="#section-3.3.2-3" class="pilcrow">¶</a></p>
@@ -1617,7 +1619,7 @@ Accept: application/json
 <span class="break"></span><dl class="dlParallel" id="section-3.3.3-2">
             <dt id="section-3.3.3-2.1">rel:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.3-2.2">
-              <p id="section-3.3.3-2.2.1"><span class="bcp14">REQUIRED</span>. A link relation type <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span>. The value is either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include <code>service</code> (the service's primary endpoint or home), <code>service-desc</code> (a machine-readable API description such as an OpenAPI document), <code>service-doc</code> (human-readable documentation), <code>terms-of-service</code>, <code>privacy-policy</code>, <code>help</code>, <code>status</code> (a service status page), <code>icon</code>, <code>describedby</code> (for example, a Protected Resource Metadata document <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>), <code>sign-up</code> (where a user can sign up for the service), and <code>mcp-server-card</code> (the service's MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span>). The relation types <code>sign-up</code> and <code>mcp-server-card</code> are registered by this document (see <a href="#iana-link-relations" class="auto internal xref">Section 9.6</a>).<a href="#section-3.3.3-2.2.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.3-2.2.1"><span class="bcp14">REQUIRED</span>. A link relation type <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span>. The value is either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include <code>service</code> (the service's primary endpoint or home), <code>service-desc</code> (a machine-readable API description such as an OpenAPI document), <code>service-doc</code> (human-readable documentation), <code>terms-of-service</code>, <code>privacy-policy</code>, <code>help</code>, <code>status</code> (a service status page), <code>icon</code>, <code>describedby</code> (for example, a Protected Resource Metadata document <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>), <code>sign-up</code> (where a user can sign up for the service), <code>mcp-server-card</code> (the service's MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span>), and <code>agent-card</code> (the service's A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span>). The relation types <code>sign-up</code>, <code>mcp-server-card</code>, and <code>agent-card</code> are registered by this document (see <a href="#iana-link-relations" class="auto internal xref">Section 9.6</a>).<a href="#section-3.3.3-2.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.3-2.3">href:</dt>
@@ -1643,29 +1645,34 @@ Accept: application/json
           <h4 id="name-connection-object">
 <a href="#section-3.3.4" class="section-number selfRef">3.3.4. </a><a href="#name-connection-object" class="section-name selfRef">Connection Object</a>
           </h4>
-<p id="section-3.3.4-1">A connection object describes one connection method for a service: one way the client can obtain the credentials needed to call the service. OAuth 2.0 token issuance is one kind of connection method; others use static or out-of-band credentials. A connection object <span class="bcp14">MUST</span> carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.<a href="#section-3.3.4-1" class="pilcrow">¶</a></p>
+<p id="section-3.3.4-1">A connection object describes one connection method for a service, separating two layers: how the client <em>acquires</em> a credential (its <code>type</code>) and how it <em>presents</em> that credential when calling the service (its <code>present</code> member, or a security scheme referenced from the service's descriptor). A connection object <span class="bcp14">MUST</span> carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.<a href="#section-3.3.4-1" class="pilcrow">¶</a></p>
 <p id="section-3.3.4-2">A connection object contains the following members:<a href="#section-3.3.4-2" class="pilcrow">¶</a></p>
 <span class="break"></span><dl class="dlParallel" id="section-3.3.4-3">
             <dt id="section-3.3.4-3.1">type:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-3.2">
-              <p id="section-3.3.4-3.2.1"><span class="bcp14">REQUIRED</span>. A string identifying the connection method, drawn from the "Service Catalog Connection Type" registry (<a href="#connection-type-registry" class="auto internal xref">Section 9.5</a>). This document defines <code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>, <code>api_key</code>, <code>mtls</code>, <code>none</code>, and <code>pre_authorized</code>.<a href="#section-3.3.4-3.2.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-3.2.1"><span class="bcp14">REQUIRED</span>. The credential acquisition method: a string drawn from the "Service Catalog Connection Type" registry (<a href="#connection-type-registry" class="auto internal xref">Section 9.5</a>). This document defines <code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>, <code>pre_authorized</code>, and <code>none</code>.<a href="#section-3.3.4-3.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.4-3.3">status:</dt>
+<dt id="section-3.3.4-3.3">present:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-3.4">
-              <p id="section-3.3.4-3.4.1"><span class="bcp14">OPTIONAL</span>. The per-user state of this connection method, as one of the following string values. If omitted, the client <span class="bcp14">SHOULD</span> treat the status as <code>available</code>.<a href="#section-3.3.4-3.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-3.4.1"><span class="bcp14">OPTIONAL</span>. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition <code>type</code>). Its value is an OpenAPI Security Scheme Object <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> -- the same model used by OpenAPI <code>securitySchemes</code> and A2A Agent Cards <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> -- for example <code>{"type": "http", "scheme": "bearer"}</code> for a bearer token, <code>{"type": "apiKey", "in": "header", "name": "X-API-Key"}</code> for an API key, or <code>{"type": "mutualTLS"}</code> for a client certificate. When <code>present</code> is omitted: for acquisition types that yield an access token (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>), the credential is presented as an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; otherwise the client determines presentation from the service's referenced security schemes. The catalog <span class="bcp14">SHOULD NOT</span> inline a <code>present</code> value that merely restates the security schemes already published in the service's descriptor (an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via <code>service-desc</code>, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference (<a href="#intent" class="auto internal xref">Section 5</a>).<a href="#section-3.3.4-3.4.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.4-3.5">status:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.4-3.6">
+              <p id="section-3.3.4-3.6.1"><span class="bcp14">OPTIONAL</span>. The per-user state of this connection method, as one of the following string values. If omitted, the client <span class="bcp14">SHOULD</span> treat the status as <code>available</code>.<a href="#section-3.3.4-3.6.1" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-3.3.4-3.4.2.1">
-                  <p id="section-3.3.4-3.4.2.1.1"><code>connected</code>: A valid credential already exists for the user; the client may be able to call the service without obtaining a new credential, or can refresh without user interaction.<a href="#section-3.3.4-3.4.2.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-3.3.4-3.6.2.1">
+                  <p id="section-3.3.4-3.6.2.1.1"><code>connected</code>: A valid credential already exists for the user; the client may be able to call the service without obtaining a new credential, or can refresh without user interaction.<a href="#section-3.3.4-3.6.2.1.1" class="pilcrow">¶</a></p>
 </li>
-                <li class="normal" id="section-3.3.4-3.4.2.2">
-                  <p id="section-3.3.4-3.4.2.2.1"><code>available</code>: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).<a href="#section-3.3.4-3.4.2.2.1" class="pilcrow">¶</a></p>
+                <li class="normal" id="section-3.3.4-3.6.2.2">
+                  <p id="section-3.3.4-3.6.2.2.1"><code>available</code>: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).<a href="#section-3.3.4-3.6.2.2.1" class="pilcrow">¶</a></p>
 </li>
-                <li class="normal" id="section-3.3.4-3.4.2.3">
-                  <p id="section-3.3.4-3.4.2.3.1"><code>consent_required</code>: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).<a href="#section-3.3.4-3.4.2.3.1" class="pilcrow">¶</a></p>
+                <li class="normal" id="section-3.3.4-3.6.2.3">
+                  <p id="section-3.3.4-3.6.2.3.1"><code>consent_required</code>: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).<a href="#section-3.3.4-3.6.2.3.1" class="pilcrow">¶</a></p>
 </li>
-                <li class="normal" id="section-3.3.4-3.4.2.4">
-                  <p id="section-3.3.4-3.4.2.4.1"><code>unavailable</code>: The method is described for completeness but cannot currently be used by this user.<a href="#section-3.3.4-3.4.2.4.1" class="pilcrow">¶</a></p>
+                <li class="normal" id="section-3.3.4-3.6.2.4">
+                  <p id="section-3.3.4-3.6.2.4.1"><code>unavailable</code>: The method is described for completeness but cannot currently be used by this user.<a href="#section-3.3.4-3.6.2.4.1" class="pilcrow">¶</a></p>
 </li>
               </ul>
 </dd>
@@ -1719,7 +1726,7 @@ Accept: application/json
         <h3 id="name-service-types">
 <a href="#section-3.4" class="section-number selfRef">3.4. </a><a href="#name-service-types" class="section-name selfRef">Service Types</a>
         </h3>
-<p id="section-3.4-1">The <code>type</code> member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry (<a href="#iana-service-type" class="auto internal xref">Section 9.3</a>). This document defines two values.<a href="#section-3.4-1" class="pilcrow">¶</a></p>
+<p id="section-3.4-1">The <code>type</code> member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry (<a href="#iana-service-type" class="auto internal xref">Section 9.3</a>). This document defines three values.<a href="#section-3.4-1" class="pilcrow">¶</a></p>
 <div id="type-rest">
 <section id="section-3.4.1">
           <h4 id="name-rest">
@@ -1750,6 +1757,28 @@ Accept: application/json
 <p id="section-3.4.2-4">Because MCP servers use OAuth 2.0 for authorization <span>[<a href="#MCP-AUTHORIZATION" class="cite xref">MCP-AUTHORIZATION</a>]</span>, an <code>mcp</code> service typically offers OAuth-based connection methods (for example, <code>authorization_code</code> or <code>token_exchange</code>); service type and connection type are independent.<a href="#section-3.4.2-4" class="pilcrow">¶</a></p>
 </section>
 </div>
+<div id="type-a2a">
+<section id="section-3.4.3">
+          <h4 id="name-a2a">
+<a href="#section-3.4.3" class="section-number selfRef">3.4.3. </a><a href="#name-a2a" class="section-name selfRef">a2a</a>
+          </h4>
+<p id="section-3.4.3-1">An Agent2Agent (A2A) agent <span>[<a href="#A2A" class="cite xref">A2A</a>]</span>. The <code>base_uri</code> member is the A2A agent endpoint. A service of type <code>a2a</code> <span class="bcp14">SHOULD</span> reference the agent's A2A Agent Card, either with an <code>agent-card</code> link (<a href="#link-object" class="auto internal xref">Section 3.3.3</a>) or with the <code>agent_card_uri</code> member below, so that a client can learn the agent's skills and capabilities without connecting.<a href="#section-3.4.3-1" class="pilcrow">¶</a></p>
+<p id="section-3.4.3-2">A service of type <code>a2a</code> <span class="bcp14">MAY</span> include an <code>a2a</code> member, a JSON object with the following members:<a href="#section-3.4.3-2" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-3.4.3-3">
+            <dt id="section-3.4.3-3.1">transport:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.4.3-3.2">
+              <p id="section-3.4.3-3.2.1"><span class="bcp14">OPTIONAL</span>. The A2A transport the endpoint uses (for example, <code>JSONRPC</code>).<a href="#section-3.4.3-3.2.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.4.3-3.3">agent_card_uri:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.4.3-3.4">
+              <p id="section-3.4.3-3.4.1"><span class="bcp14">OPTIONAL</span>. The URL of the agent's A2A Agent Card (typically at <code>/.well-known/agent-card.json</code>).<a href="#section-3.4.3-3.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+</dl>
+<p id="section-3.4.3-4">As with <code>mcp</code>, service type and connection type are independent; an <code>a2a</code> agent describes how callers authenticate to it in its Agent Card, which the catalog references rather than restates.<a href="#section-3.4.3-4" class="pilcrow">¶</a></p>
+</section>
+</div>
 </section>
 </div>
 <div id="service-categories">
@@ -1765,7 +1794,7 @@ Accept: application/json
         <h3 id="name-connection-types">
 <a href="#section-3.6" class="section-number selfRef">3.6. </a><a href="#name-connection-types" class="section-name selfRef">Connection Types</a>
         </h3>
-<p id="section-3.6-1">This section defines the initial connection types. All reuse the common connection object members from <a href="#connection-object" class="auto internal xref">Section 3.3.4</a>; the members below are type specific.<a href="#section-3.6-1" class="pilcrow">¶</a></p>
+<p id="section-3.6-1">This section defines the initial credential acquisition types -- the values of a connection's <code>type</code>. How the resulting credential is presented to the service is a separate layer, given by the connection's <code>present</code> member (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>). All reuse the common connection object members from <a href="#connection-object" class="auto internal xref">Section 3.3.4</a>; the members below are type specific.<a href="#section-3.6-1" class="pilcrow">¶</a></p>
 <div id="type-token-exchange">
 <section id="section-3.6.1">
           <h4 id="name-token_exchange">
@@ -1829,58 +1858,21 @@ Accept: application/json
 </dl>
 </section>
 </div>
-<div id="type-api-key">
-<section id="section-3.6.5">
-          <h4 id="name-api_key">
-<a href="#section-3.6.5" class="section-number selfRef">3.6.5. </a><a href="#name-api_key" class="section-name selfRef">api_key</a>
-          </h4>
-<p id="section-3.6.5-1">The client authenticates to the service with an API key it possesses out of band. The catalog describes how the key is presented but <span class="bcp14">MUST NOT</span> include the key itself.<a href="#section-3.6.5-1" class="pilcrow">¶</a></p>
-<p id="section-3.6.5-2">Type-specific members:<a href="#section-3.6.5-2" class="pilcrow">¶</a></p>
-<span class="break"></span><dl class="dlParallel" id="section-3.6.5-3">
-            <dt id="section-3.6.5-3.1">in:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.6.5-3.2">
-              <p id="section-3.6.5-3.2.1"><span class="bcp14">OPTIONAL</span>. Where the key is presented: <code>header</code> or <code>query</code>. Defaults to <code>header</code>.<a href="#section-3.6.5-3.2.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.6.5-3.3">name:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.6.5-3.4">
-              <p id="section-3.6.5-3.4.1"><span class="bcp14">OPTIONAL</span>. The name of the header or query parameter that carries the key.<a href="#section-3.6.5-3.4.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-</dl>
-</section>
-</div>
-<div id="type-mtls">
-<section id="section-3.6.6">
-          <h4 id="name-mtls">
-<a href="#section-3.6.6" class="section-number selfRef">3.6.6. </a><a href="#name-mtls" class="section-name selfRef">mtls</a>
-          </h4>
-<p id="section-3.6.6-1">The client authenticates to the service using mutual TLS with a client certificate it possesses out of band. This type defines no additional members; certificate provisioning is out of scope. A service <span class="bcp14">MAY</span> provide a <code>sign-up</code> or <code>help</code> link (<a href="#link-object" class="auto internal xref">Section 3.3.3</a>) describing enrollment.<a href="#section-3.6.6-1" class="pilcrow">¶</a></p>
-</section>
-</div>
 <div id="type-none">
-<section id="section-3.6.7">
+<section id="section-3.6.5">
           <h4 id="name-none">
-<a href="#section-3.6.7" class="section-number selfRef">3.6.7. </a><a href="#name-none" class="section-name selfRef">none</a>
+<a href="#section-3.6.5" class="section-number selfRef">3.6.5. </a><a href="#name-none" class="section-name selfRef">none</a>
           </h4>
-<p id="section-3.6.7-1">The service requires no client authentication (it is public). This type defines no additional members and typically has <code>status</code> of <code>available</code>.<a href="#section-3.6.7-1" class="pilcrow">¶</a></p>
+<p id="section-3.6.5-1">The service requires no client authentication (it is public). This type defines no additional members and typically has <code>status</code> of <code>available</code>.<a href="#section-3.6.5-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="type-pre-authorized">
-<section id="section-3.6.8">
+<section id="section-3.6.6">
           <h4 id="name-pre_authorized">
-<a href="#section-3.6.8" class="section-number selfRef">3.6.8. </a><a href="#name-pre_authorized" class="section-name selfRef">pre_authorized</a>
+<a href="#section-3.6.6" class="section-number selfRef">3.6.6. </a><a href="#name-pre_authorized" class="section-name selfRef">pre_authorized</a>
           </h4>
-<p id="section-3.6.8-1">The service is reachable using a credential the client already possesses out of band (for example, a long-lived token provisioned to the client). The catalog indicates that such a method exists but <span class="bcp14">MUST NOT</span> include the credential. This type typically has <code>status</code> of <code>connected</code>.<a href="#section-3.6.8-1" class="pilcrow">¶</a></p>
-<p id="section-3.6.8-2">Type-specific members:<a href="#section-3.6.8-2" class="pilcrow">¶</a></p>
-<span class="break"></span><dl class="dlParallel" id="section-3.6.8-3">
-            <dt id="section-3.6.8-3.1">credential_type:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.6.8-3.2">
-              <p id="section-3.6.8-3.2.1"><span class="bcp14">OPTIONAL</span>. A short string describing the kind of credential the client presents (for example, <code>bearer_token</code>).<a href="#section-3.6.8-3.2.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-</dl>
-<p id="section-3.6.8-4">A Catalog Provider <span class="bcp14">MUST NOT</span> include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.<a href="#section-3.6.8-4" class="pilcrow">¶</a></p>
+<p id="section-3.6.6-1">The credential is one the client already possesses out of band (for example, a long-lived token, an API key, or a client certificate provisioned to the client). The catalog indicates that such a method exists but <span class="bcp14">MUST NOT</span> include the credential. How the credential is presented is given by the connection's <code>present</code> member (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>). This type typically has <code>status</code> of <code>connected</code>.<a href="#section-3.6.6-1" class="pilcrow">¶</a></p>
+<p id="section-3.6.6-2">A Catalog Provider <span class="bcp14">MUST NOT</span> include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.<a href="#section-3.6.6-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1890,7 +1882,7 @@ Accept: application/json
         <h3 id="name-catalog-response-example">
 <a href="#section-3.7" class="section-number selfRef">3.7. </a><a href="#name-catalog-response-example" class="section-name selfRef">Catalog Response Example</a>
         </h3>
-<p id="section-3.7-1">The following is a non-normative example response showing three services: a REST service in the <code>email</code> category offering both token exchange and user consent, an MCP server referencing its Server Card, and a service the user is already connected to via an out-of-band credential.<a href="#section-3.7-1" class="pilcrow">¶</a></p>
+<p id="section-3.7-1">The following is a non-normative example response showing four services: a REST service in the <code>email</code> category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the <code>present</code> member), and an A2A agent referencing its Agent Card.<a href="#section-3.7-1" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-3.7-2">
 <pre>
 HTTP/1.1 200 OK
@@ -1960,8 +1952,35 @@ Cache-Control: private, max-age=60
       "categories": ["calendar"],
       "base_uri": "https://api.calendar.example",
       "connections": [
-        {"type": "pre_authorized", "status": "connected",
-         "credential_type": "bearer_token"}
+        {
+          "type": "pre_authorized",
+          "status": "connected",
+          "present": {
+            "type": "apiKey", "in": "header", "name": "X-API-Key"
+          }
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "name": "Scheduler Agent",
+      "type": "a2a",
+      "categories": ["calendar"],
+      "base_uri": "https://agent.example/a2a",
+      "a2a": {"transport": "JSONRPC"},
+      "links": [
+        {"rel": "agent-card",
+         "href":
+           "https://agent.example/.well-known/agent-card.json"}
+      ],
+      "connections": [
+        {
+          "type": "authorization_code",
+          "status": "consent_required",
+          "authorization_server": "https://as.example.com",
+          "resource": "https://agent.example/a2a",
+          "client_registration": "dynamic"
+        }
       ]
     }
   ]
@@ -2027,7 +2046,7 @@ WWW-Authenticate: Bearer
           <p id="section-4-2.4.1">Obtain the credential according to the connection <code>type</code> (see <a href="#connection-types" class="auto internal xref">Section 3.6</a>), using the values on the selected connection object, including the <code>resource</code> <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> and <code>scopes</code> for OAuth-based types.<a href="#section-4-2.4.1" class="pilcrow">¶</a></p>
 </li>
         <li id="section-4-2.5">
-          <p id="section-4-2.5.1">Call the service, presenting the credential as required (for example, as a bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>, an API key, or a client certificate). The client <span class="bcp14">MAY</span> consult a <code>describedby</code> link <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> for token presentation requirements.<a href="#section-4-2.5.1" class="pilcrow">¶</a></p>
+          <p id="section-4-2.5.1">Call the service, presenting the credential as described by the connection's <code>present</code> member or, when it is absent, by the service's referenced security schemes (an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document, an A2A Agent Card, or an MCP Server Card) -- for example, as a bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>, an API key, or a client certificate.<a href="#section-4-2.5.1" class="pilcrow">¶</a></p>
 </li>
       </ol>
 <p id="section-4-3">This specification does not define any new credential issuance mechanism. Each connection type parameterizes an existing mechanism.<a href="#section-4-3" class="pilcrow">¶</a></p>
@@ -2227,6 +2246,15 @@ WWW-Authenticate: Bearer
                 <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>
 </td>
             </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>a2a</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">Agent2Agent agent</td>
+              <td class="text-left" rowspan="1" colspan="1">
+                <a href="#type-a2a" class="auto internal xref">Section 3.4.3</a>
+</td>
+            </tr>
           </tbody>
         </table>
 </section>
@@ -2377,38 +2405,20 @@ WWW-Authenticate: Bearer
             </tr>
             <tr>
               <td class="text-left" rowspan="1" colspan="1">
-                <code>api_key</code>
+                <code>pre_authorized</code>
 </td>
-              <td class="text-left" rowspan="1" colspan="1">API key presented out of band</td>
+              <td class="text-left" rowspan="1" colspan="1">Pre-provisioned out-of-band credential</td>
               <td class="text-left" rowspan="1" colspan="1">
-                <a href="#type-api-key" class="auto internal xref">Section 3.6.5</a>
-</td>
-            </tr>
-            <tr>
-              <td class="text-left" rowspan="1" colspan="1">
-                <code>mtls</code>
-</td>
-              <td class="text-left" rowspan="1" colspan="1">Mutual TLS client certificate</td>
-              <td class="text-left" rowspan="1" colspan="1">
-                <a href="#type-mtls" class="auto internal xref">Section 3.6.6</a>
+                <a href="#type-pre-authorized" class="auto internal xref">Section 3.6.6</a>
 </td>
             </tr>
             <tr>
               <td class="text-left" rowspan="1" colspan="1">
                 <code>none</code>
 </td>
-              <td class="text-left" rowspan="1" colspan="1">No client authentication (public)</td>
+              <td class="text-left" rowspan="1" colspan="1">No credential required (public)</td>
               <td class="text-left" rowspan="1" colspan="1">
-                <a href="#type-none" class="auto internal xref">Section 3.6.7</a>
-</td>
-            </tr>
-            <tr>
-              <td class="text-left" rowspan="1" colspan="1">
-                <code>pre_authorized</code>
-</td>
-              <td class="text-left" rowspan="1" colspan="1">Pre-provisioned out-of-band credential</td>
-              <td class="text-left" rowspan="1" colspan="1">
-                <a href="#type-pre-authorized" class="auto internal xref">Section 3.6.8</a>
+                <a href="#type-none" class="auto internal xref">Section 3.6.5</a>
 </td>
             </tr>
           </tbody>
@@ -2427,6 +2437,9 @@ WWW-Authenticate: Bearer
 <p id="section-9.6-5">Relation Name: <code>mcp-server-card</code><a href="#section-9.6-5" class="pilcrow">¶</a></p>
 <p id="section-9.6-6">Description: Refers to the Model Context Protocol Server Card for the linked service.<a href="#section-9.6-6" class="pilcrow">¶</a></p>
 <p id="section-9.6-7">Reference: [[ this document ]]<a href="#section-9.6-7" class="pilcrow">¶</a></p>
+<p id="section-9.6-8">Relation Name: <code>agent-card</code><a href="#section-9.6-8" class="pilcrow">¶</a></p>
+<p id="section-9.6-9">Description: Refers to the Agent2Agent (A2A) Agent Card for the linked service.<a href="#section-9.6-9" class="pilcrow">¶</a></p>
+<p id="section-9.6-10">Reference: [[ this document ]]<a href="#section-9.6-10" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
