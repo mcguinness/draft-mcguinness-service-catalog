@@ -257,19 +257,12 @@ links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
 
 base_uri:
-: OPTIONAL. The primary endpoint URL at which the service is hosted: for a `rest` service, the base URL of its API; for an `mcp` service, the MCP server endpoint.
-
-resource:
-: OPTIONAL. The resource identifier of the service, as a canonical URI per {{Section 2 of RFC8707}}. When present, this value is the resource for which connection methods obtain tokens, and it identifies the protected resource described by the protected resource metadata link (see {{link-object}}).
-
-authorization_servers:
-: OPTIONAL. An array of authorization server issuer identifiers {{RFC8414}} that can issue tokens for the service. Individual connection objects identify the specific authorization server to use.
-
-scopes:
-: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} available to the user for this service. Individual connection objects MAY narrow this set.
+: OPTIONAL. The primary endpoint URL at which the service is hosted: for a `rest` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.
 
 mcp:
 : OPTIONAL. Present only when `type` is `mcp`; see {{type-mcp}}.
+
+The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object ({{connection-object}}) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.
 
 Extensions and service types MAY define additional members of the service object. Clients MUST ignore members they do not understand.
 
@@ -306,25 +299,25 @@ status:
     * `consent_required`: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).
     * `unavailable`: The method is described for completeness but cannot currently be used by this user.
 
-The following members apply to connection methods that obtain a token from an OAuth 2.0 authorization server. They are OPTIONAL in general but, where present, are interpreted as described:
+The following members carry the OAuth 2.0 values for connection methods that obtain a token from an OAuth 2.0 authorization server (`token_exchange`, `authorization_code`, `client_credentials`, and `id_jag`). Because these values are specific to the OAuth scheme, they appear on the connection object, not on the service object; a connection object is self-contained and the client does not combine it with values from elsewhere in the catalog.
 
 authorization_server:
-: The issuer identifier {{RFC8414}} of the authorization server to use. REQUIRED for connection types that obtain a token from an authorization server. The client obtains the authorization server's endpoints and capabilities from its metadata {{RFC8414}}.
+: REQUIRED for the OAuth-based connection types. The issuer identifier {{RFC8414}} of the authorization server to use for this connection. The client obtains the authorization server's endpoints and capabilities from its metadata {{RFC8414}}.
 
 token_endpoint:
-: The authorization server's token endpoint URL. When present, the client MAY use it directly; when absent, the client obtains it from the authorization server metadata {{RFC8414}}.
+: OPTIONAL. The authorization server's token endpoint URL. When present, the client MAY use it directly; when absent, the client obtains it from the authorization server metadata {{RFC8414}}.
 
 resource:
-: The resource indicator {{RFC8707}} the client includes when requesting a token. When absent, the client uses the service's `resource` member, if present.
+: OPTIONAL. The resource indicator {{RFC8707}} the client includes when requesting a token for this connection, as a canonical URI per {{Section 2 of RFC8707}}. This identifies the protected resource and corresponds to the resource described by a Protected Resource Metadata document {{RFC9728}}, which MAY be referenced by a `describedby` link ({{link-object}}).
 
 scopes:
-: An array of OAuth 2.0 scope values to request. When absent, the client uses the service's `scopes` member, if present.
+: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} to request for this connection.
 
 client_id:
-: A static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
+: OPTIONAL. A static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
 
 client_registration:
-: How the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
+: OPTIONAL. How the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
 
 Connection types define additional type-specific members, as described in {{connection-types}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
 
@@ -442,9 +435,6 @@ The following is a non-normative example response showing three services: a REST
           "type": "rest",
           "categories": ["email"],
           "base_uri": "https://api.example.com/mail",
-          "resource": "https://api.example.com/mail",
-          "authorization_servers": ["https://as.example.com"],
-          "scopes": ["mail.read", "mail.send"],
           "links": [
             {"rel": "service-doc",
              "href": "https://dev.example.com/mail"},
@@ -476,8 +466,6 @@ The following is a non-normative example response showing three services: a REST
           "type": "mcp",
           "categories": ["ticketing"],
           "base_uri": "https://mcp.example.com/mcp",
-          "resource": "https://mcp.example.com/mcp",
-          "authorization_servers": ["https://as.example.com"],
           "mcp": {"transport": "streamable-http"},
           "links": [
             {"rel": "mcp-server-card",
@@ -533,14 +521,14 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
 3. For OAuth-based connection types, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}; otherwise proceed without a client identifier if `client_registration` is `none`.
-4. Obtain the credential according to the connection `type` (see {{connection-types}}), including the `resource` {{RFC8707}} and `scopes` from the connection object or service object for OAuth-based types.
+4. Obtain the credential according to the connection `type` (see {{connection-types}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth-based types.
 5. Call the service, presenting the credential as required (for example, as a bearer token {{RFC6750}}, an API key, or a client certificate). The client MAY consult a `describedby` link {{RFC9728}} for token presentation requirements.
 
 This specification does not define any new credential issuance mechanism. Each connection type parameterizes an existing mechanism.
 
 # Relationship to APIs.json {#apisjson-mapping}
 
-The service object reuses the discoverability model of APIs.json {{APISJSON}} while using a modern, OAuth-aligned JSON vocabulary. A service object maps to an APIs.json API entry as follows: `name` to `name`, `description` to `description`, `base_uri` to `baseURL`, `tags` to `tags`, and `links` to `properties` (where an APIs.json property `type` corresponds to a link `rel` and the property `url` to the link `href`; for example, an OpenAPI property corresponds to a `service-desc` link). The members `type`, `categories`, `resource`, `authorization_servers`, `scopes`, `mcp`, and `connections` carry the service-type and per-user authorization context that APIs.json does not model. A Catalog Provider MAY additionally serve a static, non-user-specific APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.
+The service object reuses the discoverability model of APIs.json {{APISJSON}} while using a modern, OAuth-aligned JSON vocabulary. A service object maps to an APIs.json API entry as follows: `name` to `name`, `description` to `description`, `base_uri` to `baseURL`, `tags` to `tags`, and `links` to `properties` (where an APIs.json property `type` corresponds to a link `rel` and the property `url` to the link `href`; for example, an OpenAPI property corresponds to a `service-desc` link). The members `type`, `categories`, `mcp`, and `connections` (the last carrying the per-scheme authentication and per-user authorization context) have no APIs.json equivalent. A Catalog Provider MAY additionally serve a static, non-user-specific APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.
 
 # Relationship to Token Exchange Target Service Discovery
 
@@ -570,7 +558,7 @@ For OAuth-based connection methods, a client MUST request tokens scoped to the s
 
 ## Trust in the Catalog Provider
 
-A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. A malicious or compromised Catalog Provider could induce a client to connect to an attacker-controlled service, authorization server, or MCP server, or to present credentials to the wrong party. A client SHOULD obtain the Catalog Provider's base URL from a trusted source ({{endpoint-discovery}}), MUST validate that each `base_uri`, `authorization_server`, and `resource` is acceptable under its policy before connecting, and SHOULD apply the same scrutiny to resources referenced by `links` (such as a `service-desc` or `mcp-server-card`).
+A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. A malicious or compromised Catalog Provider could induce a client to connect to an attacker-controlled service, authorization server, or MCP server, or to present credentials to the wrong party. A client SHOULD obtain the Catalog Provider's base URL from a trusted source ({{endpoint-discovery}}), MUST validate that each service's `base_uri` and each connection's `authorization_server` and `resource` are acceptable under its policy before connecting, and SHOULD apply the same scrutiny to resources referenced by `links` (such as a `service-desc` or `mcp-server-card`).
 
 ## Confused Deputy and Client Registration
 
