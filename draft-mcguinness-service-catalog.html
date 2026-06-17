@@ -1217,7 +1217,10 @@ svg {
                 <p id="section-toc.1-1.3.2.7.1"><a href="#section-3.7" class="auto internal xref">3.7</a>.  <a href="#name-catalog-response-example" class="internal xref">Catalog Response Example</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.8">
-                <p id="section-toc.1-1.3.2.8.1"><a href="#section-3.8" class="auto internal xref">3.8</a>.  <a href="#name-error-response" class="internal xref">Error Response</a></p>
+                <p id="section-toc.1-1.3.2.8.1"><a href="#section-3.8" class="auto internal xref">3.8</a>.  <a href="#name-multiple-instances-and-acco" class="internal xref">Multiple Instances and Accounts</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.9">
+                <p id="section-toc.1-1.3.2.9.1"><a href="#section-3.9" class="auto internal xref">3.9</a>.  <a href="#name-error-response" class="internal xref">Error Response</a></p>
 </li>
             </ul>
 </li>
@@ -1488,7 +1491,7 @@ Accept: application/json
           <dd class="break"></dd>
 </dl>
 <p id="section-3.2.2-3">When more services match than are returned in a response, the Catalog Provider includes a <code>next_cursor</code> member in the catalog object (<a href="#catalog-object" class="auto internal xref">Section 3.3.1</a>); its absence indicates no further services are available. A Catalog Provider <span class="bcp14">MAY</span> also indicate the next page with a Link header field <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span> using the relation type <code>next</code>. A Catalog Provider <span class="bcp14">MAY</span> paginate even when the client did not supply a <code>limit</code>.<a href="#section-3.2.2-3" class="pilcrow">¶</a></p>
-<p id="section-3.2.2-4">The Catalog Provider <span class="bcp14">MUST</span> order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor <span class="bcp14">MAY</span> expire. A request with an expired or otherwise invalid <code>cursor</code> <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 3.8</a>); the client recovers by restarting from the first page.<a href="#section-3.2.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.2.2-4">The Catalog Provider <span class="bcp14">MUST</span> order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor <span class="bcp14">MAY</span> expire. A request with an expired or otherwise invalid <code>cursor</code> <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 3.9</a>); the client recovers by restarting from the first page.<a href="#section-3.2.2-4" class="pilcrow">¶</a></p>
 <p id="section-3.2.2-5">The following example requests the next page using a cursor from a previous response:<a href="#section-3.2.2-5" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-3.2.2-6">
 <pre>
@@ -1617,10 +1620,21 @@ Accept: application/json
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.22">
               <p id="section-3.3.2-2.22.1"><span class="bcp14">OPTIONAL</span>. Present only when <code>type</code> is <code>a2a</code>; see <a href="#type-a2a" class="auto internal xref">Section 3.4.3</a>.<a href="#section-3.3.2-2.22.1" class="pilcrow">¶</a></p>
 </dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.2-2.23">tenant:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.2-2.24">
+              <p id="section-3.3.2-2.24.1"><span class="bcp14">OPTIONAL</span>. A machine-readable identifier for the tenant of a multi-tenant service, when this service object represents one tenant. It is descriptive -- it lets a client correlate the service, and the tokens it will obtain, with a tenant context -- and aligns with the tenant identifier used in <span>[<a href="#TOKEN-EXCHANGE-DISCOVERY" class="cite xref">TOKEN-EXCHANGE-DISCOVERY</a>]</span> and <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>.<a href="#section-3.3.2-2.24.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.2-2.25">group:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.2-2.26">
+              <p id="section-3.3.2-2.26.1"><span class="bcp14">OPTIONAL</span>. A stable identifier shared by all service objects that are instances or tenants of the same logical service, so a client can group them (for example, in a picker). Service objects in the same group are otherwise independent: each has its own <code>id</code>, <code>base_uri</code>, <code>connections</code>, and per-user state.<a href="#section-3.3.2-2.26.1" class="pilcrow">¶</a></p>
+</dd>
           <dd class="break"></dd>
 </dl>
 <p id="section-3.3.2-3">The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.<a href="#section-3.3.2-3" class="pilcrow">¶</a></p>
-<p id="section-3.3.2-4">Extensions and service types <span class="bcp14">MAY</span> define additional members of the service object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.3.2-4">A logical service the user can reach as more than one instance or tenant -- for example, regional deployments, or <code>dev</code> and <code>staging</code> tenants of one provider -- is represented as multiple service objects that share a <code>group</code> value, each independently connectable and, where applicable, carrying its own <code>tenant</code>. This mirrors the per-tenant target representation of <span>[<a href="#TOKEN-EXCHANGE-DISCOVERY" class="cite xref">TOKEN-EXCHANGE-DISCOVERY</a>]</span>: the descriptive tenant identity lives on the service object, while any acquisition-time selector (such as a token-exchange <code>audience</code>) lives on the connection.<a href="#section-3.3.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.3.2-5">Extensions and service types <span class="bcp14">MAY</span> define additional members of the service object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.2-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="link-object">
@@ -1693,6 +1707,11 @@ Accept: application/json
                   <p id="section-3.3.4-3.8.2.4.1"><code>unavailable</code>: The method is described for completeness but cannot currently be used by this user.<a href="#section-3.3.4-3.8.2.4.1" class="pilcrow">¶</a></p>
 </li>
               </ul>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.4-3.9">account:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.4-3.10">
+              <p id="section-3.3.4-3.10.1"><span class="bcp14">OPTIONAL</span>. When the user has, or can establish, more than one account at the service, the account this connection is associated with. It is a JSON object with a <span class="bcp14">REQUIRED</span> <code>id</code> (an opaque, stable, provider-assigned identifier for the account) and an <span class="bcp14">OPTIONAL</span> <code>label</code> (a human-readable name for display, such as "Work"). Two connection objects of the same <code>type</code> that differ only by <code>account</code> represent two distinct accounts -- for example, two <code>connected</code> mailboxes the user can choose between. A connection with no <code>account</code> represents establishing a new account, or an account the provider does not distinguish. A <code>label</code> <span class="bcp14">MAY</span> be personal data; see <a href="#privacy-considerations" class="auto internal xref">Section 8</a>.<a href="#section-3.3.4-3.10.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -1836,17 +1855,12 @@ Accept: application/json
 <span class="break"></span><dl class="dlParallel" id="section-3.6.1-3">
             <dt id="section-3.6.1-3.1">audience:</dt>
             <dd style="margin-left: 1.5em" id="section-3.6.1-3.2">
-              <p id="section-3.6.1-3.2.1"><span class="bcp14">OPTIONAL</span>. The <code>audience</code> value <span><a href="https://rfc-editor.org/rfc/rfc8693#section-2.1" class="relref">Section 2.1</a> of [<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> to include in the token exchange request. The <code>audience</code> is the logical name of the target service and need not be a URI; it <span class="bcp14">MAY</span> be an opaque, authorization-server-local identifier. For a multi-tenant service, the Catalog Provider returns a distinct connection object per tenant, each with a distinct <code>audience</code> value that selects the tenant.<a href="#section-3.6.1-3.2.1" class="pilcrow">¶</a></p>
+              <p id="section-3.6.1-3.2.1"><span class="bcp14">OPTIONAL</span>. The <code>audience</code> value <span><a href="https://rfc-editor.org/rfc/rfc8693#section-2.1" class="relref">Section 2.1</a> of [<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> to include in the token exchange request. The <code>audience</code> is the logical name of the target service and need not be a URI; it <span class="bcp14">MAY</span> be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by <code>group</code>; see <a href="#service-object" class="auto internal xref">Section 3.3.2</a>) whose connection carries a distinct <code>audience</code> value selecting that tenant; the tenant's descriptive identity is the service object's <code>tenant</code> member.<a href="#section-3.6.1-3.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.6.1-3.3">tenant:</dt>
+<dt id="section-3.6.1-3.3">supported_token_types:</dt>
             <dd style="margin-left: 1.5em" id="section-3.6.1-3.4">
-              <p id="section-3.6.1-3.4.1"><span class="bcp14">OPTIONAL</span>. A machine-readable identifier for the tenant of a multi-tenant service. This member is descriptive (it lets the client correlate the connection with the tenant context of the resulting token) and is not used as a request parameter; the <code>audience</code> value selects the tenant.<a href="#section-3.6.1-3.4.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.6.1-3.5">supported_token_types:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.6.1-3.6">
-              <p id="section-3.6.1-3.6.1"><span class="bcp14">OPTIONAL</span>. An array of token type URIs <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> that may be requested. If omitted, the client may request any token type the authorization server supports.<a href="#section-3.6.1-3.6.1" class="pilcrow">¶</a></p>
+              <p id="section-3.6.1-3.4.1"><span class="bcp14">OPTIONAL</span>. An array of token type URIs <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> that may be requested. If omitted, the client may request any token type the authorization server supports.<a href="#section-3.6.1-3.4.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -1878,12 +1892,7 @@ Accept: application/json
 <span class="break"></span><dl class="dlParallel" id="section-3.6.4-3">
             <dt id="section-3.6.4-3.1">audience:</dt>
             <dd style="margin-left: 1.5em" id="section-3.6.4-3.2">
-              <p id="section-3.6.4-3.2.1"><span class="bcp14">OPTIONAL</span>. The audience value identifying the service for which the ID-JAG is requested.<a href="#section-3.6.4-3.2.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.6.4-3.3">tenant:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.6.4-3.4">
-              <p id="section-3.6.4-3.4.1"><span class="bcp14">OPTIONAL</span>. A machine-readable identifier for the tenant of a multi-tenant service, with the same descriptive semantics as in <a href="#type-token-exchange" class="auto internal xref">Section 3.6.1</a>.<a href="#section-3.6.4-3.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.6.4-3.2.1"><span class="bcp14">OPTIONAL</span>. The audience value identifying the service for which the ID-JAG is requested. For a multi-tenant service, the tenant is represented as in <a href="#type-token-exchange" class="auto internal xref">Section 3.6.1</a>: a distinct, grouped service object carrying the descriptive <code>tenant</code>, with the audience selecting it.<a href="#section-3.6.4-3.2.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -2025,28 +2034,101 @@ Cache-Control: private, max-age=60
 </div>
 </section>
 </div>
-<div id="error-response">
+<div id="instances-accounts">
 <section id="section-3.8">
-        <h3 id="name-error-response">
-<a href="#section-3.8" class="section-number selfRef">3.8. </a><a href="#name-error-response" class="section-name selfRef">Error Response</a>
+        <h3 id="name-multiple-instances-and-acco">
+<a href="#section-3.8" class="section-number selfRef">3.8. </a><a href="#name-multiple-instances-and-acco" class="section-name selfRef">Multiple Instances and Accounts</a>
         </h3>
-<p id="section-3.8-1">If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object <span>[<a href="#RFC9457" class="cite xref">RFC9457</a>]</span> with the media type <code>application/problem+json</code>. The HTTP status code is set as follows:<a href="#section-3.8-1" class="pilcrow">¶</a></p>
+<p id="section-3.8-1">A logical service the user can reach as more than one instance or tenant is returned as multiple service objects sharing a <code>group</code>; the user's multiple accounts at a service are returned as multiple connection objects distinguished by <code>account</code>. The following non-normative fragment shows abbreviated <code>services</code> entries: two tenants of one logical service, and a service the user is connected to under two accounts (with a third connection to add another).<a href="#section-3.8-1" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3.8-2">
+<pre>
+{
+  "id": "saas-dev",
+  "name": "SaaS Example (Dev)",
+  "group": "saas-example",
+  "tenant": "dev",
+  "base_uri": "https://api.saas.example",
+  "connections": [
+    {
+      "type": "token_exchange",
+      "status": "available",
+      "authorization_server": "https://as.saas.example",
+      "resource": "https://api.saas.example",
+      "audience": "urn:saas:tenant:dev"
+    }
+  ]
+},
+{
+  "id": "saas-staging",
+  "name": "SaaS Example (Staging)",
+  "group": "saas-example",
+  "tenant": "staging",
+  "base_uri": "https://api.saas.example",
+  "connections": [
+    {
+      "type": "token_exchange",
+      "status": "available",
+      "authorization_server": "https://as.saas.example",
+      "resource": "https://api.saas.example",
+      "audience": "urn:saas:tenant:staging"
+    }
+  ]
+},
+{
+  "id": "mail",
+  "name": "Example Mail",
+  "categories": ["email"],
+  "base_uri": "https://api.example.com/mail",
+  "connections": [
+    {
+      "type": "token_exchange",
+      "status": "connected",
+      "account": {"id": "acct-1", "label": "Work"},
+      "authorization_server": "https://as.example.com",
+      "resource": "https://api.example.com/mail"
+    },
+    {
+      "type": "token_exchange",
+      "status": "connected",
+      "account": {"id": "acct-2", "label": "Personal"},
+      "authorization_server": "https://as.example.com",
+      "resource": "https://api.example.com/mail"
+    },
+    {
+      "type": "authorization_code",
+      "status": "consent_required",
+      "authorization_server": "https://as.example.com",
+      "resource": "https://api.example.com/mail",
+      "client_registration": "dynamic"
+    }
+  ]
+}
+</pre><a href="#section-3.8-2" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="error-response">
+<section id="section-3.9">
+        <h3 id="name-error-response">
+<a href="#section-3.9" class="section-number selfRef">3.9. </a><a href="#name-error-response" class="section-name selfRef">Error Response</a>
+        </h3>
+<p id="section-3.9-1">If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object <span>[<a href="#RFC9457" class="cite xref">RFC9457</a>]</span> with the media type <code>application/problem+json</code>. The HTTP status code is set as follows:<a href="#section-3.9-1" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-3.8-2.1">
-            <p id="section-3.8-2.1.1">401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider <span class="bcp14">MUST</span> include a <code>WWW-Authenticate</code> header field <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span> indicating how to authenticate.<a href="#section-3.8-2.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-3.9-2.1">
+            <p id="section-3.9-2.1.1">401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider <span class="bcp14">MUST</span> include a <code>WWW-Authenticate</code> header field <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span> indicating how to authenticate.<a href="#section-3.9-2.1.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-3.8-2.2">
-            <p id="section-3.8-2.2.1">403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.<a href="#section-3.8-2.2.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-3.9-2.2">
+            <p id="section-3.9-2.2.1">403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.<a href="#section-3.9-2.2.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-3.8-2.3">
-            <p id="section-3.8-2.3.1">400 (Bad Request): the request is malformed, or includes an invalid or expired <code>cursor</code> (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>).<a href="#section-3.8-2.3.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-3.9-2.3">
+            <p id="section-3.9-2.3.1">400 (Bad Request): the request is malformed, or includes an invalid or expired <code>cursor</code> (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>).<a href="#section-3.9-2.3.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-3.8-2.4">
-            <p id="section-3.8-2.4.1">503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.<a href="#section-3.8-2.4.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-3.9-2.4">
+            <p id="section-3.9-2.4.1">503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.<a href="#section-3.9-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
-<p id="section-3.8-3">The following is an example error response:<a href="#section-3.8-3" class="pilcrow">¶</a></p>
-<div class="alignLeft art-text artwork" id="section-3.8-4">
+<p id="section-3.9-3">The following is an example error response:<a href="#section-3.9-3" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3.9-4">
 <pre>
 HTTP/1.1 401 Unauthorized
 Content-Type: application/problem+json
@@ -2057,7 +2139,7 @@ WWW-Authenticate: Bearer
   "title": "The access token is missing or expired",
   "status": 401
 }
-</pre><a href="#section-3.8-4" class="pilcrow">¶</a>
+</pre><a href="#section-3.9-4" class="pilcrow">¶</a>
 </div>
 </section>
 </div>
@@ -2213,10 +2295,13 @@ WWW-Authenticate: Bearer
           <p id="section-8-2.3.1">The Catalog Provider <span class="bcp14">SHOULD NOT</span> include identifiers of other users or of tenants the user is not associated with.<a href="#section-8-2.3.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-8-2.4">
-          <p id="section-8-2.4.1">The Catalog Provider <span class="bcp14">SHOULD</span> log access in accordance with applicable privacy regulations and <span class="bcp14">SHOULD</span> minimize retention of catalog requests.<a href="#section-8-2.4.1" class="pilcrow">¶</a></p>
+          <p id="section-8-2.4.1">Account labels (<code>account.label</code>) <span class="bcp14">MAY</span> be personal data (for example, an email address). The Catalog Provider <span class="bcp14">SHOULD</span> return the minimum needed for the user to distinguish accounts -- a display name or masked address -- and <span class="bcp14">MAY</span> omit the label entirely, leaving only the opaque <code>account.id</code>.<a href="#section-8-2.4.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-8-2.5">
-          <p id="section-8-2.5.1">A deployment <span class="bcp14">MAY</span> provide mechanisms for users to review and limit the services exposed through the catalog.<a href="#section-8-2.5.1" class="pilcrow">¶</a></p>
+          <p id="section-8-2.5.1">The Catalog Provider <span class="bcp14">SHOULD</span> log access in accordance with applicable privacy regulations and <span class="bcp14">SHOULD</span> minimize retention of catalog requests.<a href="#section-8-2.5.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-8-2.6">
+          <p id="section-8-2.6.1">A deployment <span class="bcp14">MAY</span> provide mechanisms for users to review and limit the services exposed through the catalog.<a href="#section-8-2.6.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 </section>
