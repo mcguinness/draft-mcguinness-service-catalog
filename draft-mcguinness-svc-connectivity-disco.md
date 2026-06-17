@@ -131,7 +131,7 @@ It is useful to see this as the reachability analogue of OAuth 2.0 Authorization
 The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
 
 * **Discovery** -- which services are reachable for this user and client.
-* **Acquisition** -- how a credential is obtained (the connection `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none).
+* **Acquisition** -- how a credential is obtained (the connection `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, credential injection by a trusted intermediary, or none).
 * **Presentation** -- how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
 
 Discovery is the catalog's own role; acquisition and presentation are the two layers carried by each connection method ({{connection-object}}). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.
@@ -177,7 +177,7 @@ Service:
 : Something a client can call on behalf of the user, such as an HTTP API or an MCP server. A service has a service type (see {{service-types}}).
 
 Connection Method:
-: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `type` (how the credential is obtained; see {{connection-type-registry}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential or none.
+: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `type` (how the credential is obtained; see {{connection-type-registry}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
 
 All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC3986}} unless otherwise stated.
 
@@ -473,7 +473,7 @@ A connection object describes one connection method for a service, separating tw
 Every connection object has a `type`:
 
 type:
-: REQUIRED. A string giving the credential acquisition method, drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, and `none`.
+: REQUIRED. A string giving the credential acquisition method, drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, `proxy_injected`, and `none`.
 
 **Acquisition members.** The following members carry the OAuth 2.0 values for connection methods that obtain a token from an OAuth 2.0 authorization server (`token_exchange`, `authorization_code`, `client_credentials`, and `id_jag`). They are carried on the connection object, rather than inherited from the service object or other catalog entries, so each connection is interpreted on its own.
 
@@ -506,7 +506,7 @@ present:
     * Allowed types: the value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS` -- for example `{"type": "http", "scheme": "bearer"}`, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}`, or `{"type": "mutualTLS"}`. The `oauth2` and `openIdConnect` types MUST NOT appear, because credential acquisition (including OAuth flows) is expressed by the `type` member.
     * When omitted: presentation is resolved using the precedence order defined under `security_scheme` below.
     * No restatement: the catalog SHOULD NOT inline a `present` value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}).
-    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither `present` nor `security_scheme` is used; for `a2a` services, presentation follows the agent's Agent Card.
+    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither `present` nor `security_scheme` is used; for `a2a` services, presentation follows the agent's Agent Card. For a `proxy_injected` connection ({{type-proxy-injected}}), `present` describes how the client authenticates to the intermediary, not to the service.
     * Sender-constrained tokens: when the resource's Protected Resource Metadata {{RFC9728}} indicates DPoP-bound access tokens are required (`dpop_bound_access_tokens_required`), or the authorization server signals DPoP support, the client MUST present a DPoP-bound token {{RFC9449}} rather than a plain bearer token. This requirement is discovered from that metadata rather than restated in the catalog.
 
 security_scheme:
@@ -541,7 +541,7 @@ The OAuth values in a connection object (`authorization_server`, `resource`, `sc
 
 * Re-anchoring confirms that the `authorization_server` is authoritative for the `resource`; it does not establish that the `resource` (or `base_uri`) is the service the user intended, since a compromised provider could supply a `resource` whose Protected Resource Metadata is self-consistent. For a `consent_required` service with which the user has no prior relationship, the client MUST independently confirm the resource (for example, by user confirmation or an origin allowlist) before sending credentials.
 
-* Connection methods with no `authorization_server` -- `pre_authorized`, `none`, and any `present`-only API key or mutual TLS scheme -- cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's `base_uri`, the client MUST establish the binding between that `base_uri` (and the credential) and the intended service from a trusted source -- explicit configuration, a trust policy, or user confirmation -- not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in {{connection-object}}) is likewise conveyed out of band, since there is no resource metadata to discover it from.
+* Connection methods with no `authorization_server` -- `pre_authorized`, `proxy_injected`, `none`, and any `present`-only API key or mutual TLS scheme -- cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's `base_uri` (or routing through an intermediary for `proxy_injected`), the client MUST establish the binding between that `base_uri` (and the credential or intermediary) and the intended service from a trusted source -- explicit configuration, a trust policy, or user confirmation -- not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in {{connection-object}}) is likewise conveyed out of band, since there is no resource metadata to discover it from.
 
 * If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.
 
@@ -589,6 +589,17 @@ The service requires no client authentication (it is public). This type defines 
 ### pre_authorized {#type-pre-authorized}
 
 The credential is one the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning) -- never through the catalog. The catalog only signals that this method applies and, via the connection's `present` member ({{connection-object}}), how the credential is presented; it MUST NOT include the credential itself or any pointer that would let an unauthorized party retrieve it. This type typically has `status` of `connected`.
+
+### proxy_injected {#type-proxy-injected}
+
+The client never obtains or holds the service credential. A trusted intermediary -- an egress proxy or gateway -- attaches the credential to the client's requests to the service on the client's behalf. This is the agent-safer model in which a compromised client yields no long-lived service secret; it is compatible with the audience-binding and no-passthrough rules of {{audience-binding}}, which the intermediary (acting as the client to the service) observes.
+
+Type-specific members:
+
+proxy:
+: OPTIONAL. A JSON object describing the intermediary. It MAY contain `endpoint` (a URI through which the client routes its requests to the service); when `endpoint` is absent, the intermediary operates transparently on the client's egress and is configured out of band.
+
+When the client routes through an explicit `endpoint`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service; the service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored ({{authoritative}}); the client MUST establish trust in the intermediary's `endpoint` and identity from a trusted source before routing requests through it.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
@@ -840,7 +851,7 @@ The catalog reveals the complete set of services a user can reach, together with
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) in the catalog. Connection objects describe how to obtain or present a credential, not the credential itself. Consistent with {{MCP-SERVER-CARD}}, a referenced MCP Server Card likewise MUST NOT contain secrets; a client treats the card as untrusted input and validates it.
 
-## Token Audience Binding and Passthrough
+## Token Audience Binding and Passthrough {#audience-binding}
 
 For OAuth-based connection methods, a client MUST request tokens scoped to the specific service it intends to call, including the `resource` indicator {{RFC8707}}, so that issued tokens are bound to their intended service. A client MUST NOT present a token issued for one service to a different service. A service acting as a client to a further upstream service MUST obtain a separate token rather than passing through the token it received. These requirements mirror the token audience and passthrough guidance in {{MCP-AUTHORIZATION}}.
 
@@ -955,6 +966,7 @@ IANA is requested to establish the "Service Catalog Connection Type" registry fo
 | `client_credentials` | Client credentials grant | {{type-client-credentials}} |
 | `id_jag` | Identity Assertion Authorization Grant | {{type-id-jag}} |
 | `pre_authorized` | Pre-provisioned out-of-band credential | {{type-pre-authorized}} |
+| `proxy_injected` | Credential injected by a trusted intermediary | {{type-proxy-injected}} |
 | `none` | No credential required (public) | {{type-none}} |
 
 ## Link Relation Types {#iana-link-relations}
@@ -992,6 +1004,7 @@ Reference: [[ this document ]]
 * Clarified filtering (whole-object selection, effective status), pagination (next-page precedence, `limit` bounds, best-effort snapshot), and the error model (429/`Retry-After`, distinct problem `type`s).
 * Pinned `present` to OpenAPI 3.1+ and forbade casing normalization; added a mandatory-to-implement bearer auth baseline; made the DCR trust-gate a MUST for autonomous clients.
 * Clarified multi-account silent acquisition, the `audience` selector's trust basis, `client_credentials` status, `base_uri` vs `resource`, and the status default caution; dropped the decorative `version` member.
+* Added the `proxy_injected` connection type for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.
 
 -00
 
