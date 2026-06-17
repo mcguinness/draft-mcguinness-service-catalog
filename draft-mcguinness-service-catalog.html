@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta content="Common,Latin" name="scripts">
 <meta content="initial-scale=1.0" name="viewport">
-<title>Per-User Service Catalog for Agents</title>
+<title>Per-User Service Connectivity Discovery</title>
 <meta content="Karl McGuinness" name="author">
 <meta content="
-       This specification defines the Service Catalog Endpoint, a per-user HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the services a user can reach and how to connect to each. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and each connection method separates how a credential is obtained (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it is presented (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. The catalog reuses APIs.json-style description, well-known link relation types, and OpenAPI security schemes, and lets an agent plan intent-scoped access before requesting any token. 
+       This specification defines per-user service connectivity discovery: a standardized answer to the question &quot;which services can this user and client connect to right now, and how?&quot; Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint -- discovered from the user's identity provider metadata after sign-in -- and receives a catalog, scoped to that user, of the reachable services and, for each, one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token. 
     " name="description">
 <meta content="xml2rfc 3.33.0" name="generator">
 <meta content="OAuth 2.0" name="keyword">
 <meta content="Discovery" name="keyword">
+<meta content="Connectivity" name="keyword">
 <meta content="Agents" name="keyword">
 <meta content="Catalog" name="keyword">
 <meta content="MCP" name="keyword">
@@ -1047,7 +1048,7 @@ svg {
 <table class="ears">
 <thead><tr>
 <td class="left">Internet-Draft</td>
-<td class="center">Service Catalog</td>
+<td class="center">Service Connectivity Discovery</td>
 <td class="right">June 2026</td>
 </tr></thead>
 <tfoot><tr>
@@ -1080,10 +1081,10 @@ svg {
 </dd>
 </dl>
 </div>
-<h1 id="title">Per-User Service Catalog for Agents</h1>
+<h1 id="title">Per-User Service Connectivity Discovery</h1>
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
-<p id="section-abstract-1">This specification defines the Service Catalog Endpoint, a per-user HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the services a user can reach and how to connect to each. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and each connection method separates how a credential is obtained (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it is presented (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. The catalog reuses APIs.json-style description, well-known link relation types, and OpenAPI security schemes, and lets an agent plan intent-scoped access before requesting any token.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-1">This specification defines per-user service connectivity discovery: a standardized answer to the question "which services can this user and client connect to right now, and how?" Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint -- discovered from the user's identity provider metadata after sign-in -- and receives a catalog, scoped to that user, of the reachable services and, for each, one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
 </section>
 <div id="status-of-memo">
 <section id="section-boilerplate.1">
@@ -1137,12 +1138,15 @@ svg {
             <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-introduction" class="internal xref">Introduction</a></p>
 <ul class="compact toc ulBare ulEmpty">
 <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1.2.1">
-                <p id="section-toc.1-1.1.2.1.1" class="keepWithNext"><a href="#section-1.1" class="auto internal xref">1.1</a>.  <a href="#name-what-the-catalog-is-not" class="internal xref">What the Catalog Is Not</a></p>
+                <p id="section-toc.1-1.1.2.1.1" class="keepWithNext"><a href="#section-1.1" class="auto internal xref">1.1</a>.  <a href="#name-why-agents-need-this" class="internal xref">Why Agents Need This</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1.2.2">
+                <p id="section-toc.1-1.1.2.2.1" class="keepWithNext"><a href="#section-1.2" class="auto internal xref">1.2</a>.  <a href="#name-what-the-catalog-is-not" class="internal xref">What the Catalog Is Not</a></p>
 </li>
             </ul>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
-            <p id="section-toc.1-1.2.1" class="keepWithNext"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-conventions-and-definitions" class="internal xref">Conventions and Definitions</a></p>
+            <p id="section-toc.1-1.2.1"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-conventions-and-definitions" class="internal xref">Conventions and Definitions</a></p>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
             <p id="section-toc.1-1.3.1"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-overview" class="internal xref">Overview</a></p>
@@ -1168,10 +1172,13 @@ svg {
                 <p id="section-toc.1-1.4.2.3.1"><a href="#section-4.3" class="auto internal xref">4.3</a>.  <a href="#name-catalog-response" class="internal xref">Catalog Response</a></p>
 <ul class="compact toc ulBare ulEmpty">
 <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3.2.1">
-                    <p id="section-toc.1-1.4.2.3.2.1.1"><a href="#section-4.3.1" class="auto internal xref">4.3.1</a>.  <a href="#name-service-availability-and-st" class="internal xref">Service Availability and Status</a></p>
+                    <p id="section-toc.1-1.4.2.3.2.1.1"><a href="#section-4.3.1" class="auto internal xref">4.3.1</a>.  <a href="#name-authority-for-inclusion" class="internal xref">Authority for Inclusion</a></p>
 </li>
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3.2.2">
-                    <p id="section-toc.1-1.4.2.3.2.2.1"><a href="#section-4.3.2" class="auto internal xref">4.3.2</a>.  <a href="#name-error-response" class="internal xref">Error Response</a></p>
+                    <p id="section-toc.1-1.4.2.3.2.2.1"><a href="#section-4.3.2" class="auto internal xref">4.3.2</a>.  <a href="#name-service-availability-and-st" class="internal xref">Service Availability and Status</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3.2.3">
+                    <p id="section-toc.1-1.4.2.3.2.3.1"><a href="#section-4.3.3" class="auto internal xref">4.3.3</a>.  <a href="#name-error-response" class="internal xref">Error Response</a></p>
 </li>
                 </ul>
 </li>
@@ -1343,61 +1350,65 @@ svg {
       <h2 id="name-introduction">
 <a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
       </h2>
-<p id="section-1-1">An autonomous agent acting on behalf of a user frequently needs to answer two questions before it can do useful work: <em>which services can this user reach?</em> and <em>how do I connect to a given service and obtain the credentials to call it?</em> Today, neither question has a standardized, user-scoped answer. Service inventories are maintained out of band (static configuration, proprietary catalogs, or human documentation), and connection details are discovered reactively, one service at a time.<a href="#section-1-1" class="pilcrow">¶</a></p>
-<p id="section-1-2">Existing discovery mechanisms each solve part of the problem. OAuth 2.0 Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> lets a client discover the authorization server(s) for a <em>single</em> resource it already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> describes a <em>single</em> authorization server. The Model Context Protocol authorization specification <span>[<a href="#MCP-AUTHORIZATION" class="cite xref">MCP-AUTHORIZATION</a>]</span> composes these with Dynamic Client Registration <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span> and Resource Indicators <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> into a per-service connection flow, and MCP Server Cards <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> describe a single MCP server's capabilities. APIs.json <span>[<a href="#APISJSON" class="cite xref">APISJSON</a>]</span> provides a "sitemap for APIs" for human and tooling consumption, but carries no per-user authorization context. None of these provides a single, user-scoped answer to <em>what is available to me and how do I connect</em>.<a href="#section-1-2" class="pilcrow">¶</a></p>
-<p id="section-1-3">This specification defines the <strong>Service Catalog Endpoint</strong>: a single HTTP resource that returns, for the authenticated user, the set of services available to that user and, for each service, the descriptive metadata needed to understand it and one or more <strong>connection methods</strong> needed to obtain credentials and call it. The catalog is produced by a <strong>Catalog Provider</strong>, which <span class="bcp14">MAY</span> aggregate services that span multiple resources, multiple authorization servers, multiple authentication schemes, and multiple administrative domains.<a href="#section-1-3" class="pilcrow">¶</a></p>
-<p id="section-1-4">The design is deliberately general:<a href="#section-1-4" class="pilcrow">¶</a></p>
+<p id="section-1-1">An autonomous agent acting on behalf of a user needs a basic answer before it can do useful work: <em>which services can this user and client connect to right now, and how is each connection established?</em> Today there is no standardized, authorization-aware answer. Service inventories live in static configuration, proprietary catalogs, or human documentation, and connection details are discovered reactively, one service at a time after an authorization failure. Static configuration in particular cannot reflect the per-user and per-client authorization decisions that determine what is actually reachable at a given moment.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-2">Existing discovery mechanisms describe services; they do not say which services a particular user and client may reach, nor how to connect. OAuth 2.0 Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> describes a <em>single</em> resource the client already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> describes a <em>single</em> authorization server. The Model Context Protocol authorization specification <span>[<a href="#MCP-AUTHORIZATION" class="cite xref">MCP-AUTHORIZATION</a>]</span>, MCP Server Cards <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span>, A2A Agent Cards <span>[<a href="#A2A" class="cite xref">A2A</a>]</span>, and APIs.json <span>[<a href="#APISJSON" class="cite xref">APISJSON</a>]</span> describe individual services or agents for human and tooling consumption. None answers, for a given user and client, <em>what is reachable and how do I connect</em>. The closest relative is OAuth 2.0 Token Exchange Target Service Discovery <span>[<a href="#TOKEN-EXCHANGE-DISCOVERY" class="cite xref">TOKEN-EXCHANGE-DISCOVERY</a>]</span>, which performs authorization-aware discovery for one mechanism (token exchange); this document generalizes that idea across connection mechanisms, and a client that only needs token exchange can use the catalog as a superset of it.<a href="#section-1-2" class="pilcrow">¶</a></p>
+<p id="section-1-3">This specification defines per-user <strong>service connectivity discovery</strong>. A client makes a single authenticated request to the <strong>Service Catalog Endpoint</strong> and receives, for the authenticated user, the set of reachable services and, for each, the descriptive metadata to understand it and one or more <strong>connection methods</strong> to obtain credentials and call it. The document returned is the <em>catalog</em>; the server that produces it is the <strong>Catalog Provider</strong>, which <span class="bcp14">MAY</span> aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.<a href="#section-1-3" class="pilcrow">¶</a></p>
+<p id="section-1-4">It is useful to see this as the reachability analogue of OAuth 2.0 Authorization Server Metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>: where RFC 8414 lets a client discover one authorization server per issuer and its authorization capabilities, this document lets a client discover the reachable services per user and client and their connection capabilities.<a href="#section-1-4" class="pilcrow">¶</a></p>
+<p id="section-1-5">The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:<a href="#section-1-5" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-1-5.1">
-          <p id="section-1-5.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>http</code>), an MCP server (<code>mcp</code>), or an A2A agent (<code>a2a</code>). MCP servers and A2A agents are first-class: such a service references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> or A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.<a href="#section-1-5.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-1-6.1">
+          <p id="section-1-6.1.1"><strong>Discovery</strong> -- which services are reachable for this user and client.<a href="#section-1-6.1.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-1-5.2">
-          <p id="section-1-5.2.1"><strong>Two-layer authentication, OAuth not assumed.</strong> Each connection method separates <em>credential acquisition</em> (its <code>type</code> -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, or none) from <em>credential presentation</em> (how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.<a href="#section-1-5.2.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-1-6.2">
+          <p id="section-1-6.2.1"><strong>Acquisition</strong> -- how a credential is obtained (the connection <code>type</code>: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, or none).<a href="#section-1-6.2.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-1-5.3">
-          <p id="section-1-5.3.1"><strong>Capability-based discovery.</strong> Each service may carry well-known <strong>categories</strong> (such as <code>email</code> or <code>calendar</code>), so an agent can find a service by what it does rather than by name.<a href="#section-1-5.3.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="section-1-5.4">
-          <p id="section-1-5.4.1"><strong>Well-known links.</strong> Each service may carry typed <strong>links</strong> (such as documentation, sign-up, terms of service, or the MCP Server Card) using link relation types <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span>.<a href="#section-1-5.4.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-1-6.3">
+          <p id="section-1-6.3.1"><strong>Presentation</strong> -- how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme (a bearer token, API key, or mutual TLS).<a href="#section-1-6.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-1-6">This specification generalizes target discovery for OAuth 2.0 Token Exchange <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span>: token exchange is modeled as one connection method (<code>token_exchange</code>) among several. A client that only needs token exchange can use the catalog as a superset of, and an alternative to, <span>[<a href="#TOKEN-EXCHANGE-DISCOVERY" class="cite xref">TOKEN-EXCHANGE-DISCOVERY</a>]</span>.<a href="#section-1-6" class="pilcrow">¶</a></p>
-<p id="section-1-7">This specification provides the following benefits:<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-7">Separating these lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-8">Beyond this, the design is deliberately general:<a href="#section-1-8" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-1-8.1">
-          <p id="section-1-8.1.1"><strong>Proactive, aggregated discovery.</strong> A single request returns every service the user can reach across resources, authentication schemes, and domains, rather than discovering one service at a time in reaction to authorization failures.<a href="#section-1-8.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-1-9.1">
+          <p id="section-1-9.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>http</code>), an MCP server (<code>mcp</code>), or an A2A agent (<code>a2a</code>). MCP servers and A2A agents are first-class: such a service references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> or A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> so a client can learn the service's capabilities without connecting.<a href="#section-1-9.1.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-1-8.2">
-          <p id="section-1-8.2.1"><strong>User-scoped results.</strong> The catalog reflects real-time policy evaluation for the authenticated user, returning only services and connection methods the user (and the calling client) is permitted to use.<a href="#section-1-8.2.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-1-9.2">
+          <p id="section-1-9.2.1"><strong>Capability-based discovery.</strong> Each service may carry well-known <strong>categories</strong> (such as <code>email</code> or <code>calendar</code>), so an agent can find a service by what it does rather than by name.<a href="#section-1-9.2.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-1-8.3">
-          <p id="section-1-8.3.1"><strong>Actionable connection metadata.</strong> Each connection method carries enough information for the client to execute the connection, or to deterministically fetch what is missing, without out-of-band configuration.<a href="#section-1-8.3.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-1-9.3">
+          <p id="section-1-9.3.1"><strong>Well-known links.</strong> Each service may carry typed <strong>links</strong> (documentation, sign-up, terms of service, the MCP Server Card, and others) using link relation types <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span>.<a href="#section-1-9.3.1" class="pilcrow">¶</a></p>
 </li>
-        <li class="normal" id="section-1-8.4">
-          <p id="section-1-8.4.1"><strong>Intent-based planning.</strong> An agent can read the catalog, and the capability descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span> (<a href="#intent" class="auto internal xref">Section 7</a>).<a href="#section-1-8.4.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="section-1-8.5">
-          <p id="section-1-8.5.1"><strong>Extensibility without new mechanisms.</strong> Service types, categories, link relations, and connection methods are added through registries rather than by defining new protocols.<a href="#section-1-8.5.1" class="pilcrow">¶</a></p>
+        <li class="normal" id="section-1-9.4">
+          <p id="section-1-9.4.1"><strong>Intent-based planning.</strong> An agent can read the catalog, and the descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span> (<a href="#intent" class="auto internal xref">Section 7</a>).<a href="#section-1-9.4.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<div id="what-the-catalog-is-not">
+<p id="section-1-10">Service types, categories, link relations, and connection types are each extensible through an IANA registry, so the model grows without new protocols.<a href="#section-1-10" class="pilcrow">¶</a></p>
+<div id="why-agents-need-this">
 <section id="section-1.1">
-        <h3 id="name-what-the-catalog-is-not">
-<a href="#section-1.1" class="section-number selfRef">1.1. </a><a href="#name-what-the-catalog-is-not" class="section-name selfRef">What the Catalog Is Not</a>
+        <h3 id="name-why-agents-need-this">
+<a href="#section-1.1" class="section-number selfRef">1.1. </a><a href="#name-why-agents-need-this" class="section-name selfRef">Why Agents Need This</a>
         </h3>
-<p id="section-1.1-1">The catalog is deliberately narrow. It is <strong>not</strong>:<a href="#section-1.1-1" class="pilcrow">¶</a></p>
+<p id="section-1.1-1">An autonomous agent cannot realistically, at runtime, scan a user's OpenAPI documents, infer which SaaS systems the user actually has, determine which accounts exist, and derive each service's connection mechanism. Service connectivity discovery answers exactly that: in one request, an agent learns the set of services that are both relevant and connectable for the user, and how to connect, before planning any action. This makes it primarily an agent-facing mechanism, though nothing restricts its use to agents.<a href="#section-1.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="what-the-catalog-is-not">
+<section id="section-1.2">
+        <h3 id="name-what-the-catalog-is-not">
+<a href="#section-1.2" class="section-number selfRef">1.2. </a><a href="#name-what-the-catalog-is-not" class="section-name selfRef">What the Catalog Is Not</a>
+        </h3>
+<p id="section-1.2-1">The catalog is deliberately narrow. It is <strong>not</strong>:<a href="#section-1.2-1" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-1.1-2.1">
-            <p id="section-1.1-2.1.1">authoritative API or capability metadata -- that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates (<a href="#related-work" class="auto internal xref">Section 8</a>);<a href="#section-1.1-2.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-1.2-2.1">
+            <p id="section-1.2-2.1.1">authoritative API or capability metadata -- that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates (<a href="#related-work" class="auto internal xref">Section 8</a>);<a href="#section-1.2-2.1.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-1.1-2.2">
-            <p id="section-1.1-2.2.1">a token issuance or grant protocol -- it describes how to use existing mechanisms and issues no credential itself (<a href="#connecting" class="auto internal xref">Section 6</a>);<a href="#section-1.1-2.2.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-1.2-2.2">
+            <p id="section-1.2-2.2.1">a token issuance or grant protocol -- it describes how to use existing mechanisms and issues no credential itself (<a href="#connecting" class="auto internal xref">Section 6</a>);<a href="#section-1.2-2.2.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-1.1-2.3">
-            <p id="section-1.1-2.3.1">proof of current authorization -- a listed service, or a connection's <code>connected</code> status, does not guarantee a subsequent call will succeed (<a href="#availability" class="auto internal xref">Section 4.3.1</a>);<a href="#section-1.1-2.3.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-1.2-2.3">
+            <p id="section-1.2-2.3.1">proof of current authorization -- a listed service, or a connection's <code>connected</code> status, does not guarantee a subsequent call will succeed (<a href="#availability" class="auto internal xref">Section 4.3.2</a>);<a href="#section-1.2-2.3.1" class="pilcrow">¶</a></p>
 </li>
-          <li class="normal" id="section-1.1-2.4">
-            <p id="section-1.1-2.4.1">a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting (<a href="#connection-object" class="auto internal xref">Section 5.6</a>).<a href="#section-1.1-2.4.1" class="pilcrow">¶</a></p>
+          <li class="normal" id="section-1.2-2.4">
+            <p id="section-1.2-2.4.1">a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting (<a href="#connection-object" class="auto internal xref">Section 5.6</a>).<a href="#section-1.2-2.4.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
 </section>
@@ -1490,7 +1501,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
             <p id="section-4.1-2.2.1">Read the issuer metadata. The client fetches the issuer's authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the <code>service_catalog_endpoint</code> value (<a href="#iana-as-metadata" class="auto internal xref">Section 11.1</a>), having verified that the metadata <code>issuer</code> matches the expected issuer.<a href="#section-4.1-2.2.1" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-4.1-2.2.2.1">
-                <p id="section-4.1-2.2.2.1.1">The metadata value is authoritative; the client <span class="bcp14">SHOULD</span> prefer it when present.<a href="#section-4.1-2.2.2.1.1" class="pilcrow">¶</a></p>
+                <p id="section-4.1-2.2.2.1.1">The metadata value is the primary, <span class="bcp14">RECOMMENDED</span> mechanism; the client <span class="bcp14">SHOULD</span> prefer it when present.<a href="#section-4.1-2.2.2.1.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-4.1-2.2.2.2">
                 <p id="section-4.1-2.2.2.2.1">If the metadata omits <code>service_catalog_endpoint</code>, a provider co-located with the issuer <span class="bcp14">MAY</span> serve the endpoint at <code>{issuer}/.well-known/service-catalog</code> <span>[<a href="#RFC8615" class="cite xref">RFC8615</a>]</span> (see <a href="#iana-well-known" class="auto internal xref">Section 11.3</a>); this fallback is an optional deployment convenience, not a requirement.<a href="#section-4.1-2.2.2.2.1" class="pilcrow">¶</a></p>
@@ -1584,7 +1595,7 @@ Accept: application/json
           <dd class="break"></dd>
 </dl>
 <p id="section-4.2.2-3">When more services match than are returned in a response, the Catalog Provider includes a <code>next_cursor</code> member in the catalog object (<a href="#catalog-object" class="auto internal xref">Section 5.1</a>); its absence indicates no further services are available. A Catalog Provider <span class="bcp14">MAY</span> also indicate the next page with a Link header field <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span> using the relation type <code>next</code>. A Catalog Provider <span class="bcp14">MAY</span> paginate even when the client did not supply a <code>limit</code>.<a href="#section-4.2.2-3" class="pilcrow">¶</a></p>
-<p id="section-4.2.2-4">The Catalog Provider <span class="bcp14">MUST</span> order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor <span class="bcp14">MAY</span> expire. A request with an expired or otherwise invalid <code>cursor</code> <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 4.3.2</a>); the client recovers by restarting from the first page.<a href="#section-4.2.2-4" class="pilcrow">¶</a></p>
+<p id="section-4.2.2-4">The Catalog Provider <span class="bcp14">MUST</span> order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor <span class="bcp14">MAY</span> expire. A request with an expired or otherwise invalid <code>cursor</code> <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) (<a href="#error-response" class="auto internal xref">Section 4.3.3</a>); the client recovers by restarting from the first page.<a href="#section-4.2.2-4" class="pilcrow">¶</a></p>
 <p id="section-4.2.2-5">The following example requests the next page using a cursor from a previous response:<a href="#section-4.2.2-5" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-4.2.2-6">
 <pre>
@@ -1606,52 +1617,71 @@ Accept: application/json
 <p id="section-4.3-1">If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON <span>[<a href="#RFC8259" class="cite xref">RFC8259</a>]</span> object, the <strong>catalog object</strong> (<a href="#catalog-object" class="auto internal xref">Section 5.1</a>). The <code>Content-Type</code> of the response <span class="bcp14">MUST</span> be <code>application/service-catalog+json</code> (<a href="#iana-media-type" class="auto internal xref">Section 11.2</a>); the media type suffix <code>+json</code> allows generic JSON tooling to process it. A JSON Schema for the catalog object is published with this specification, and the catalog object <span class="bcp14">MAY</span> carry a <code>$schema</code> member referencing it, so that clients can validate responses and generate types. A complete example appears in <a href="#response-example" class="auto internal xref">Section 5.8</a>.<a href="#section-4.3-1" class="pilcrow">¶</a></p>
 <p id="section-4.3-2">The Catalog Provider <span class="bcp14">MUST</span> evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog <span class="bcp14">MUST</span> contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider <span class="bcp14">MUST</span> omit any member that would otherwise contain an empty string, an empty array, or a null value.<a href="#section-4.3-2" class="pilcrow">¶</a></p>
 <p id="section-4.3-3">The Catalog Provider <span class="bcp14">MAY</span> include HTTP caching headers as specified in <span>[<a href="#RFC9111" class="cite xref">RFC9111</a>]</span>. Because the catalog is user specific, any cache directives <span class="bcp14">MUST</span> mark the response as private (for example, <code>Cache-Control: private</code>). To let a client refresh a large per-user catalog cheaply, the Catalog Provider <span class="bcp14">SHOULD</span> support conditional requests by returning an <code>ETag</code> (and/or <code>Last-Modified</code>) and honoring <code>If-None-Match</code> (and/or <code>If-Modified-Since</code>) <span>[<a href="#RFC9110" class="cite xref">RFC9110</a>]</span>, responding 304 (Not Modified) when the catalog is unchanged.<a href="#section-4.3-3" class="pilcrow">¶</a></p>
-<div id="availability">
+<div id="inclusion">
 <section id="section-4.3.1">
-          <h4 id="name-service-availability-and-st">
-<a href="#section-4.3.1" class="section-number selfRef">4.3.1. </a><a href="#name-service-availability-and-st" class="section-name selfRef">Service Availability and Status</a>
+          <h4 id="name-authority-for-inclusion">
+<a href="#section-4.3.1" class="section-number selfRef">4.3.1. </a><a href="#name-authority-for-inclusion" class="section-name selfRef">Authority for Inclusion</a>
           </h4>
-<p id="section-4.3.1-1">"Available to the user" is split across two levels: whether a service <em>appears</em> at all, and the per-connection <code>status</code> (<a href="#connection-object" class="auto internal xref">Section 5.6</a>) of how it can be used.<a href="#section-4.3.1-1" class="pilcrow">¶</a></p>
-<p id="section-4.3.1-2">A service appears in the catalog when the user is permitted to know it exists -- it is <em>discoverable</em>. Appearing does not by itself mean the user can call it now; that is conveyed per connection:<a href="#section-4.3.1-2" class="pilcrow">¶</a></p>
+<p id="section-4.3.1-1">Inclusion of a service or connection method in the catalog is an assertion by the Catalog Provider that the authenticated user and client may use it. The basis for that assertion is provider-defined and may combine, for example, authorization server policy, enterprise administrator policy, the user's account state, and the service provider's registration state; this document does not mandate a particular basis. The following constraints apply:<a href="#section-4.3.1-1" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-4.3.1-3.1">
-              <p id="section-4.3.1-3.1.1">Discoverable: the service is listed at all. A Catalog Provider <span class="bcp14">MUST</span> omit services the user is not permitted to discover.<a href="#section-4.3.1-3.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-4.3.1-2.1">
+              <p id="section-4.3.1-2.1.1">A Catalog Provider <span class="bcp14">MUST</span> include only services and connection methods the user and client are permitted to use, to the best of the provider's knowledge; it <span class="bcp14">MUST NOT</span> pad the catalog with services the user cannot use, except to mark them <code>unavailable</code> (<a href="#availability" class="auto internal xref">Section 4.3.2</a>).<a href="#section-4.3.1-2.1.1" class="pilcrow">¶</a></p>
 </li>
-            <li class="normal" id="section-4.3.1-3.2">
-              <p id="section-4.3.1-3.2.1">Connectable without interaction: at least one connection has <code>status</code> <code>available</code> or <code>connected</code>.<a href="#section-4.3.1-3.2.1" class="pilcrow">¶</a></p>
+            <li class="normal" id="section-4.3.1-2.2">
+              <p id="section-4.3.1-2.2.1">Inclusion is a point-in-time assertion, not a guarantee that a call will succeed (<a href="#availability" class="auto internal xref">Section 4.3.2</a>); the authoritative authorization decision remains with the service and its authorization server.<a href="#section-4.3.1-2.2.1" class="pilcrow">¶</a></p>
 </li>
-            <li class="normal" id="section-4.3.1-3.3">
-              <p id="section-4.3.1-3.3.1">Connectable after consent: a connection has <code>status</code> <code>consent_required</code>.<a href="#section-4.3.1-3.3.1" class="pilcrow">¶</a></p>
-</li>
-            <li class="normal" id="section-4.3.1-3.4">
-              <p id="section-4.3.1-3.4.1">Known but currently unavailable: every connection has <code>status</code> <code>unavailable</code> -- for example, the service is licensed but not provisioned for this user, or is temporarily blocked by policy. The service is still shown so the user or agent knows it exists and how it might be enabled (for example, via a <code>sign-up</code> link).<a href="#section-4.3.1-3.4.1" class="pilcrow">¶</a></p>
+            <li class="normal" id="section-4.3.1-2.3">
+              <p id="section-4.3.1-2.3.1">A client <span class="bcp14">MUST NOT</span> treat inclusion as authorization in itself; it still re-anchors to the resource and obtains a credential through the normal flow (<a href="#authoritative" class="auto internal xref">Section 5.6.1</a>).<a href="#section-4.3.1-2.3.1" class="pilcrow">¶</a></p>
 </li>
           </ul>
-<p id="section-4.3.1-4">In short, inclusion answers "may the user know about this service," and <code>status</code> answers "can the user connect, and how."<a href="#section-4.3.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="availability">
+<section id="section-4.3.2">
+          <h4 id="name-service-availability-and-st">
+<a href="#section-4.3.2" class="section-number selfRef">4.3.2. </a><a href="#name-service-availability-and-st" class="section-name selfRef">Service Availability and Status</a>
+          </h4>
+<p id="section-4.3.2-1">"Available to the user" is split across two levels: whether a service <em>appears</em> at all, and the per-connection <code>status</code> (<a href="#connection-object" class="auto internal xref">Section 5.6</a>) of how it can be used.<a href="#section-4.3.2-1" class="pilcrow">¶</a></p>
+<p id="section-4.3.2-2">A service appears in the catalog when the user is permitted to know it exists -- it is <em>discoverable</em>. Appearing does not by itself mean the user can call it now; that is conveyed per connection:<a href="#section-4.3.2-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.3.2-3.1">
+              <p id="section-4.3.2-3.1.1">Discoverable: the service is listed at all. A Catalog Provider <span class="bcp14">MUST</span> omit services the user is not permitted to discover.<a href="#section-4.3.2-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-4.3.2-3.2">
+              <p id="section-4.3.2-3.2.1">Connectable without interaction: at least one connection has <code>status</code> <code>available</code> or <code>connected</code>.<a href="#section-4.3.2-3.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-4.3.2-3.3">
+              <p id="section-4.3.2-3.3.1">Connectable after consent: a connection has <code>status</code> <code>consent_required</code>.<a href="#section-4.3.2-3.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-4.3.2-3.4">
+              <p id="section-4.3.2-3.4.1">Known but currently unavailable: every connection has <code>status</code> <code>unavailable</code> -- for example, the service is licensed but not provisioned for this user, or is temporarily blocked by policy. The service is still shown so the user or agent knows it exists and how it might be enabled (for example, via a <code>sign-up</code> link).<a href="#section-4.3.2-3.4.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-4.3.2-4">In short, inclusion answers "may the user know about this service," and <code>status</code> answers "can the user connect, and how."<a href="#section-4.3.2-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="error-response">
-<section id="section-4.3.2">
+<section id="section-4.3.3">
           <h4 id="name-error-response">
-<a href="#section-4.3.2" class="section-number selfRef">4.3.2. </a><a href="#name-error-response" class="section-name selfRef">Error Response</a>
+<a href="#section-4.3.3" class="section-number selfRef">4.3.3. </a><a href="#name-error-response" class="section-name selfRef">Error Response</a>
           </h4>
-<p id="section-4.3.2-1">If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object <span>[<a href="#RFC9457" class="cite xref">RFC9457</a>]</span> with the media type <code>application/problem+json</code>. The HTTP status code is set as follows:<a href="#section-4.3.2-1" class="pilcrow">¶</a></p>
+<p id="section-4.3.3-1">If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object <span>[<a href="#RFC9457" class="cite xref">RFC9457</a>]</span> with the media type <code>application/problem+json</code>. The HTTP status code is set as follows:<a href="#section-4.3.3-1" class="pilcrow">¶</a></p>
 <ul class="normal">
-<li class="normal" id="section-4.3.2-2.1">
-              <p id="section-4.3.2-2.1.1">401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider <span class="bcp14">MUST</span> include a <code>WWW-Authenticate</code> header field <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span> indicating how to authenticate.<a href="#section-4.3.2-2.1.1" class="pilcrow">¶</a></p>
+<li class="normal" id="section-4.3.3-2.1">
+              <p id="section-4.3.3-2.1.1">401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider <span class="bcp14">MUST</span> include a <code>WWW-Authenticate</code> header field <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span> indicating how to authenticate.<a href="#section-4.3.3-2.1.1" class="pilcrow">¶</a></p>
 </li>
-            <li class="normal" id="section-4.3.2-2.2">
-              <p id="section-4.3.2-2.2.1">403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.<a href="#section-4.3.2-2.2.1" class="pilcrow">¶</a></p>
+            <li class="normal" id="section-4.3.3-2.2">
+              <p id="section-4.3.3-2.2.1">403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.<a href="#section-4.3.3-2.2.1" class="pilcrow">¶</a></p>
 </li>
-            <li class="normal" id="section-4.3.2-2.3">
-              <p id="section-4.3.2-2.3.1">400 (Bad Request): the request is malformed, or includes an invalid or expired <code>cursor</code> (see <a href="#pagination" class="auto internal xref">Section 4.2.2</a>).<a href="#section-4.3.2-2.3.1" class="pilcrow">¶</a></p>
+            <li class="normal" id="section-4.3.3-2.3">
+              <p id="section-4.3.3-2.3.1">400 (Bad Request): the request is malformed, or includes an invalid or expired <code>cursor</code> (see <a href="#pagination" class="auto internal xref">Section 4.2.2</a>).<a href="#section-4.3.3-2.3.1" class="pilcrow">¶</a></p>
 </li>
-            <li class="normal" id="section-4.3.2-2.4">
-              <p id="section-4.3.2-2.4.1">503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.<a href="#section-4.3.2-2.4.1" class="pilcrow">¶</a></p>
+            <li class="normal" id="section-4.3.3-2.4">
+              <p id="section-4.3.3-2.4.1">503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.<a href="#section-4.3.3-2.4.1" class="pilcrow">¶</a></p>
 </li>
           </ul>
-<p id="section-4.3.2-3">The following is an example error response:<a href="#section-4.3.2-3" class="pilcrow">¶</a></p>
-<div class="alignLeft art-text artwork" id="section-4.3.2-4">
+<p id="section-4.3.3-3">The following is an example error response:<a href="#section-4.3.3-3" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-4.3.3-4">
 <pre>
 HTTP/1.1 401 Unauthorized
 Content-Type: application/problem+json
@@ -1662,7 +1692,7 @@ WWW-Authenticate: Bearer
   "title": "The access token is missing or expired",
   "status": 401
 }
-</pre><a href="#section-4.3.2-4" class="pilcrow">¶</a>
+</pre><a href="#section-4.3.3-4" class="pilcrow">¶</a>
 </div>
 </section>
 </div>
@@ -2004,6 +2034,7 @@ WWW-Authenticate: Bearer
                 <p id="section-5.6-9.2.2.4.1"><code>unavailable</code>: The method is described for completeness but cannot currently be used by this user.<a href="#section-5.6-9.2.2.4.1" class="pilcrow">¶</a></p>
 </li>
             </ul>
+<p id="section-5.6-9.2.3">These four values are the protocol-relevant distinctions -- whether a credential exists, can be obtained without interaction, requires interaction, or is unusable. Finer operational states (for example, pending administrator approval, an expired credential, or a user-disconnected account) are deployment details, are not standardized, and are conveyed, if at all, through other members or out of band.<a href="#section-5.6-9.2.3" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 <dt id="section-5.6-9.3">account:</dt>
