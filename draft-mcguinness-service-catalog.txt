@@ -105,6 +105,7 @@ Table of Contents
      7.4.  Token Audience Binding and Passthrough
      7.5.  Trust in the Catalog Provider
      7.6.  Confused Deputy and Client Registration
+     7.7.  Authorization Server Mix-Up
    8.  Privacy Considerations
    9.  IANA Considerations
      9.1.  OAuth Authorization Server Metadata
@@ -538,6 +539,11 @@ Table of Contents
       in the same group are otherwise independent: each has its own id,
       base_uri, connections, and per-user state.
 
+   group_name:  OPTIONAL.  A human-readable name for the group, suitable
+      as a heading when a client presents the grouped instances or
+      tenants together.  Service objects sharing a group SHOULD carry
+      the same group_name.
+
    The service object intentionally carries no authentication-scheme-
    specific members.  Values such as the authorization server, scopes,
    and resource indicator are properties of a particular authentication
@@ -605,36 +611,39 @@ Table of Contents
       client_credentials, id_jag, pre_authorized, and none.
 
    present:  OPTIONAL.  How the client presents its credential when
-      calling the service (the service-authentication layer, as distinct
+      calling the service (the service-authentication layer, distinct
       from the acquisition type).  Its value is an OpenAPI Security
       Scheme Object [OPENAPI] -- the same model used by OpenAPI
-      securitySchemes and A2A Agent Cards [A2A] -- for example {"type":
-      "http", "scheme": "bearer"} for a bearer token, {"type": "apiKey",
-      "in": "header", "name": "X-API-Key"} for an API key, or {"type":
-      "mutualTLS"} for a client certificate.  When present is omitted:
-      for acquisition types that yield an access token (token_exchange,
-      authorization_code, client_credentials, id_jag), the credential is
-      presented as an HTTP bearer token [RFC6750]; otherwise the client
-      determines presentation from the service's referenced security
-      schemes.  The catalog SHOULD NOT inline a present value that
-      merely restates the security schemes already published in the
-      service's descriptor (an OpenAPI [OPENAPI] document via service-
-      desc, an A2A Agent Card, or an MCP Server Card); a client obtains
-      those by reference (Section 5).  For OAuth-based acquisition types
-      the presentation is normally an HTTP bearer token, so present is
-      usually omitted for them; it is primarily useful for non-OAuth
-      presentation.  Because its value is a verbatim OpenAPI Security
-      Scheme Object, its member names follow OpenAPI conventions (for
-      example, mutualTLS) rather than the snake_case used elsewhere in
-      this document.  The value MUST be of OpenAPI type http, apiKey, or
-      mutualTLS; the oauth2 and openIdConnect scheme types MUST NOT
-      appear in present, because credential acquisition (including OAuth
-      flows) is expressed by the connection type.  The present member is
-      primarily for http services that lack a referenced descriptor: for
-      mcp services, presentation follows the MCP specification (a bearer
-      token over the MCP transport) and neither present nor
-      security_scheme is used; for a2a services, presentation follows
-      the agent's Agent Card.
+      securitySchemes and A2A Agent Cards [A2A]; because it is a
+      verbatim OpenAPI object, its member names follow OpenAPI
+      conventions (for example, mutualTLS) rather than the snake_case
+      used elsewhere in this document.  The following apply:
+
+      *  Allowed types: the value MUST be of OpenAPI type http, apiKey,
+         or mutualTLS -- for example {"type": "http", "scheme":
+         "bearer"}, {"type": "apiKey", "in": "header", "name": "X-API-
+         Key"}, or {"type": "mutualTLS"}. The oauth2 and openIdConnect
+         types MUST NOT appear, because credential acquisition
+         (including OAuth flows) is expressed by the type member.
+
+      *  When omitted: for acquisition types that yield an access token
+         (token_exchange, authorization_code, client_credentials,
+         id_jag) the credential is presented as an HTTP bearer token
+         [RFC6750]; otherwise the client determines presentation from
+         the service's referenced security schemes (see
+         security_scheme).
+
+      *  No restatement: the catalog SHOULD NOT inline a present value
+         that merely repeats security schemes already published in the
+         service's descriptor (an OpenAPI document via service-desc, an
+         A2A Agent Card, or an MCP Server Card); a client obtains those
+         by reference (Section 5).
+
+      *  Applicability: present is primarily for http services that lack
+         a referenced descriptor.  For mcp services, presentation
+         follows the MCP specification (a bearer token over the MCP
+         transport) and neither present nor security_scheme is used; for
+         a2a services, presentation follows the agent's Agent Card.
 
    security_scheme:  OPTIONAL.  When the service's referenced descriptor
       defines named security schemes (the keys of an OpenAPI
@@ -651,6 +660,14 @@ Table of Contents
       in this order: an explicit present; otherwise the named
       security_scheme resolved against the descriptor; otherwise, for
       OAuth-based acquisition types, an HTTP bearer token [RFC6750].
+
+      Some services require sender-constrained tokens.  When the
+      resource's Protected Resource Metadata [RFC9728] indicates DPoP-
+      bound access tokens are required
+      (dpop_bound_access_tokens_required), or the authorization server
+      signals DPoP support, the client MUST present a DPoP-bound token
+      [RFC9449] rather than a plain bearer token.  This requirement is
+      discovered from that metadata rather than restated in the catalog.
 
    status:  OPTIONAL.  The per-user state of this connection method, as
       one of the following string values.  If omitted, the client SHOULD
@@ -674,17 +691,35 @@ Table of Contents
       *  unavailable: The method is described for completeness but
          cannot currently be used by this user.
 
-   account:  OPTIONAL.  When the user has, or can establish, more than
-      one account at the service, the account this connection is
-      associated with.  It is a JSON object with a REQUIRED id (an
-      opaque, stable, provider-assigned identifier for the account) and
+   account:  OPTIONAL.  The account this connection is associated with,
+      when the user holds (or can establish) more than one account at
+      the service.  An account is a distinct identity or subscription
+      the user holds at the service, established through prior
+      authorization or account linking; how accounts are established or
+      linked is out of scope.  It is a JSON object with a REQUIRED id
+      (an opaque, stable, provider-assigned identifier for the account),
       an OPTIONAL label (a human-readable name for display, such as
-      "Work").  Two connection objects of the same type that differ only
-      by account represent two distinct accounts -- for example, two
-      connected mailboxes the user can choose between.  A connection
-      with no account represents establishing a new account, or an
-      account the provider does not distinguish.  A label MAY be
-      personal data; see Section 8.
+      "Work"; it MAY be personal data, see Section 8), and an OPTIONAL
+      login_hint (a value the client passes as the OpenID Connect
+      login_hint parameter to steer an interactive authorization to this
+      account).
+
+      Two connection objects of the same type that differ only by
+      account represent two distinct accounts -- for example, two
+      connected mailboxes.  A connection with no account represents
+      establishing a new account, or an account the provider does not
+      distinguish.
+
+      The account is honored differently per acquisition type.  For
+      interactive acquisition (authorization_code), the client SHOULD
+      pass the account's login_hint, or otherwise rely on the
+      authorization server's account selection, to obtain a token for
+      that account.  For silent acquisition (token_exchange, id_jag),
+      the account is determined by the identity of the subject token (or
+      assertion) the client presents; selecting a connected account
+      therefore means using the subject token that corresponds to it.
+      The opaque id is a correlation handle, not a token request
+      parameter.
 
    The following members carry the OAuth 2.0 values for connection
    methods that obtain a token from an OAuth 2.0 authorization server
@@ -700,9 +735,13 @@ Table of Contents
       server's endpoints and capabilities from its metadata [RFC8414].
 
    token_endpoint:  OPTIONAL.  The authorization server's token endpoint
-      URL.  When present, the client MAY use it directly; when absent,
-      the client obtains it from the authorization server metadata
-      [RFC8414].
+      URL, provided as an optimization.  Before using it, the client
+      MUST verify it matches the token_endpoint in the validated
+      metadata [RFC8414] of the connection's authorization_server; the
+      client MUST NOT send a credential (such as a token exchange
+      subject_token) to a token_endpoint it has not verified against
+      that metadata.  When absent, the client obtains the token endpoint
+      from the authorization server metadata.
 
    resource:  OPTIONAL.  The resource indicator [RFC8707] the client
       includes when requesting a token for this connection, as a
@@ -870,9 +909,15 @@ Table of Contents
 3.6.1.  token_exchange
 
    The client obtains a token by performing an OAuth 2.0 Token Exchange
-   [RFC8693] at the authorization_server, presenting a token it already
-   holds for the user as the subject_token.  This is the catalog
-   equivalent of [TOKEN-EXCHANGE-DISCOVERY].
+   [RFC8693] at the authorization_server.  As the subject_token the
+   client presents a token it already holds whose subject is the user --
+   typically the access token it used to retrieve the catalog, or
+   another user token the authorization_server is configured to accept
+   for exchange.  Whether this connection is truly silent (status of
+   available) depends on the client possessing such an acceptable
+   subject token; if it does not, the exchange will fail and the client
+   must obtain a suitable token first.  This is the catalog equivalent
+   of [TOKEN-EXCHANGE-DISCOVERY].
 
    Type-specific members:
 
@@ -902,8 +947,12 @@ Table of Contents
 3.6.3.  client_credentials
 
    The client obtains a token using the OAuth 2.0 client credentials
-   grant Section 4.4 of [RFC6749], authenticating as itself.  This type
-   typically has status of available.  This type defines no additional
+   grant Section 4.4 of [RFC6749], authenticating as itself.  The
+   resulting token carries no user identity; this type is appropriate
+   only when the agent acts as itself and the service does not need the
+   user's identity, and the catalog includes it because such a service
+   may still be relevant to the user's task.  Its status reflects the
+   client's own access, not the user's.  This type defines no additional
    members.
 
 3.6.4.  id_jag
@@ -1215,13 +1264,19 @@ Table of Contents
       A client MAY read these to understand a service's operations and
       resources, and plan, without obtaining any token.  The
       connection's scopes and authorization_details_types are only an
-      upper bound (Section 3.3.4); the descriptor carries the per-
-      operation requirements -- for an OpenAPI service, each operation's
-      security and required scopes -- so a client maps its intended
-      operations to the minimal scopes and authorization details it must
-      request.  For a multi-step goal spanning operations or services, a
-      client MAY use a workflow description such as Arazzo [ARAZZO] to
-      plan the sequence before acquiring any token.
+      upper bound (Section 3.3.4); the authoritative, fine-grained
+      requirements come from the service, and their granularity differs
+      by service type.  An http service described by OpenAPI [OPENAPI]
+      exposes operations with per-operation security and required
+      scopes; an mcp service exposes tools enumerated at runtime, where
+      scopes are typically server-wide (via the server's Protected
+      Resource Metadata [RFC9728]) rather than per-tool; an a2a service
+      exposes skills described in its Agent Card.  A client maps its
+      intended operations, tools, or skills to the minimal scopes and
+      authorization details it must request.  For a multi-step goal
+      spanning operations or services, a client MAY use a workflow
+      description such as Arazzo [ARAZZO] to plan the sequence before
+      acquiring any token.
 
    *  Connect with minimal access to enumerate, then request what is
       needed.  When an agent must inspect the user's actual resources
@@ -1384,6 +1439,19 @@ Table of Contents
    registering with, or obtaining tokens from, an authorization server
    discovered through the catalog, consistent with the confused-deputy
    guidance in [MCP-AUTHORIZATION].
+
+7.7.  Authorization Server Mix-Up
+
+   A catalog directs a client to potentially many authorization servers,
+   and an agent may run several authorization flows concurrently -- the
+   conditions under which authorization server mix-up attacks arise.  A
+   client using the authorization_code connection type SHOULD use the
+   iss authorization response parameter [RFC9207] and verify it
+   identifies the expected authorization server, and MUST otherwise
+   follow the mix-up mitigations of current OAuth security best
+   practice.  Re-anchoring each connection's authorization_server to the
+   resource's Protected Resource Metadata (Section 3.3.4) further
+   reduces this risk.
 
 8.  Privacy Considerations
 
@@ -1688,6 +1756,16 @@ Table of Contents
               and F. Skokan, "OAuth 2.0 Pushed Authorization Requests",
               RFC 9126, DOI 10.17487/RFC9126, September 2021,
               <https://www.rfc-editor.org/info/rfc9126>.
+
+   [RFC9207]  Meyer zu Selhausen, K. and D. Fett, "OAuth 2.0
+              Authorization Server Issuer Identification", RFC 9207,
+              DOI 10.17487/RFC9207, March 2022,
+              <https://www.rfc-editor.org/info/rfc9207>.
+
+   [RFC9449]  Fett, D., Campbell, B., Bradley, J., Lodderstedt, T.,
+              Jones, M., and D. Waite, "OAuth 2.0 Demonstrating Proof of
+              Possession (DPoP)", RFC 9449, DOI 10.17487/RFC9449,
+              September 2023, <https://www.rfc-editor.org/info/rfc9449>.
 
    [RFC9470]  Bertocci, V. and B. Campbell, "OAuth 2.0 Step Up
               Authentication Challenge Protocol", RFC 9470,
