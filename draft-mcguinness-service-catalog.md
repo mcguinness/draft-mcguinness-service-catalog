@@ -148,6 +148,15 @@ This specification provides the following benefits:
 
 * **Extensibility without new mechanisms.** Service types, categories, link relations, and connection methods are added through registries rather than by defining new protocols.
 
+## What the Catalog Is Not
+
+The catalog is deliberately narrow. It is **not**:
+
+* authoritative API or capability metadata -- that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates ({{related-work}});
+* a token issuance or grant protocol -- it describes how to use existing mechanisms and issues no credential itself ({{connecting}});
+* proof of current authorization -- a listed service, or a connection's `connected` status, does not guarantee a subsequent call will succeed ({{availability}});
+* a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting ({{connection-object}}).
+
 # Conventions and Definitions
 
 {::boilerplate bcp14-tagged}
@@ -172,13 +181,25 @@ All members and string values defined by this document are case sensitive unless
 
 The Service Catalog Endpoint is an HTTP resource that returns the catalog of services available to the authenticated user. The client MUST use TLS as specified in {{Section 1.6 of RFC6749}}.
 
+## Client Processing Model {#processing-model}
+
+At a high level, a client uses the catalog as follows; later sections detail each step.
+
+1. Discover the catalog endpoint ({{endpoint-discovery}}).
+2. Authenticate to the catalog and retrieve it ({{catalog-request}}).
+3. Filter and select a service ({{filtering}}, {{service-object}}).
+4. Verify the selected service's resource and authorization server metadata, re-anchoring trust to the resource ({{connection-object}}).
+5. Select a connection method ({{connection-object}}).
+6. Obtain the credential for the selected connection ({{connecting}}).
+7. Call the service, presenting the credential ({{connecting}}).
+
 ## Discovering the Catalog Endpoint {#endpoint-discovery}
 
 The Service Catalog Endpoint is anchored to the user's identity provider: the OAuth 2.0 authorization server (or OpenID Connect Provider) that the user signs in to. After the user has authenticated, a client discovers and calls the endpoint as follows:
 
 1. Determine the issuer. When the client has completed an OpenID Connect sign-in, the issuer is the `iss` value of the ID token. When the client starts from only a user identifier (for example, an `acct:` URI) and has not yet signed in, it MAY use WebFinger {{RFC7033}} to resolve the issuer, using the relation type `http://openid.net/specs/connect/1.0/issuer`, and then sign in. WebFinger is used only to resolve the issuer; it MUST NOT be used to convey the catalog endpoint or its contents (see {{privacy-considerations}}).
 
-2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}). The client MUST verify that the metadata `issuer` matches the expected issuer. If the metadata does not contain `service_catalog_endpoint`, the default location is the well-known URI {{RFC8615}} formed by appending `service-catalog` to `/.well-known/` of the issuer (that is, `{issuer}/.well-known/service-catalog`; see {{iana-well-known}}).
+2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}). The client MUST verify that the metadata `issuer` matches the expected issuer. The metadata value is authoritative and the client SHOULD prefer it when present. If the metadata does not contain `service_catalog_endpoint`, a provider co-located with the issuer MAY serve the endpoint at the well-known URI {{RFC8615}} formed by appending `service-catalog` to `/.well-known/` of the issuer (`{issuer}/.well-known/service-catalog`; see {{iana-well-known}}); this fallback is an optional deployment convenience, not a requirement. A client MUST NOT treat a catalog at an origin different from the issuer as authoritative for the issuer's users on the basis of URL structure alone; cross-origin authority requires the metadata value or explicit configuration.
 
 3. Retrieve the catalog. The client sends an authenticated request to the endpoint with the user's access token ({{catalog-request}}). The catalog is scoped to the user identified by the access token, not by the endpoint URL.
 
@@ -251,6 +272,19 @@ If the request is valid and authenticated, the Catalog Provider returns an HTTP 
 The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value.
 
 The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`). To let a client refresh a large per-user catalog cheaply, the Catalog Provider SHOULD support conditional requests by returning an `ETag` (and/or `Last-Modified`) and honoring `If-None-Match` (and/or `If-Modified-Since`) {{RFC9110}}, responding 304 (Not Modified) when the catalog is unchanged.
+
+### What "Available" Means {#availability}
+
+"Available to the user" is split across two levels: whether a service *appears* at all, and the per-connection `status` ({{connection-object}}) of how it can be used.
+
+A service appears in the catalog when the user is permitted to know it exists -- it is *discoverable*. Appearing does not by itself mean the user can call it now; that is conveyed per connection:
+
+* Discoverable: the service is listed at all. A Catalog Provider MUST omit services the user is not permitted to discover.
+* Connectable without interaction: at least one connection has `status` `available` or `connected`.
+* Connectable after consent: a connection has `status` `consent_required`.
+* Known but currently unavailable: every connection has `status` `unavailable` -- for example, the service is licensed but not provisioned for this user, or is temporarily blocked by policy. The service is still shown so the user or agent knows it exists and how it might be enabled (for example, via a `sign-up` link).
+
+In short, inclusion answers "may the user know about this service," and `status` answers "can the user connect, and how."
 
 ### Catalog Object {#catalog-object}
 
@@ -372,7 +406,7 @@ security_scheme:
 status:
 : OPTIONAL. The per-user state of this connection method, as one of the following string values. If omitted, the client SHOULD treat the status as `available`.
 
-    * `connected`: A valid credential already exists for the user; the client may be able to call the service without obtaining a new credential, or can refresh without user interaction. This is a point-in-time indication and MAY be stale (for example, the credential may have since expired or been revoked); a client MUST still handle an authentication failure at call time.
+    * `connected`: The Catalog Provider knows of an existing user-service relationship or credential grant (for example, a prior authorization, an account link, or a stored token). This indicates a relationship exists, not that a valid credential is in hand: the client may still need to obtain or refresh a token, and the relationship MAY be stale (expired or revoked), so a client MUST still handle an authentication failure at call time.
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
     * `consent_required`: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).
     * `unavailable`: The method is described for completeness but cannot currently be used by this user.
@@ -457,7 +491,7 @@ As with `mcp`, service type and connection type are independent; an `a2a` agent 
 
 ## Service Categories {#service-categories}
 
-The `categories` member of a service object, and the `category` query parameter ({{catalog-request}}), use well-known category values from the "Service Catalog Service Category" registry ({{iana-category}}) to describe what a service does. This document seeds the registry with the values `email`, `calendar`, `contacts`, `files`, `chat`, `tasks`, `crm`, and `ticketing`. The registry is extensible; an agent can rely on these values to find a service by capability (for example, "an email service") rather than by name.
+The `categories` member of a service object, and the `category` query parameter ({{catalog-request}}), use well-known category values from the "Service Catalog Service Category" registry ({{iana-category}}) to describe what a service does. This document seeds the registry with the values `email`, `calendar`, `contacts`, `files`, `chat`, `tasks`, `crm`, and `ticketing`. The registry is extensible under a Specification Required policy ({{iana-category}}) so the shared vocabulary stays coherent; private or experimental categories use a collision-resistant namespaced form. An agent can rely on registered values to find a service by capability (for example, "an email service") rather than by name.
 
 ## Connection Types {#connection-types}
 
@@ -498,7 +532,7 @@ The service requires no client authentication (it is public). This type defines 
 
 ### pre_authorized {#type-pre-authorized}
 
-The credential is one the client already possesses out of band (for example, a long-lived token, an API key, or a client certificate provisioned to the client). The catalog indicates that such a method exists but MUST NOT include the credential. How the credential is presented is given by the connection's `present` member ({{connection-object}}). This type typically has `status` of `connected`.
+The credential is one the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning) -- never through the catalog. The catalog only signals that this method applies and, via the connection's `present` member ({{connection-object}}), how the credential is presented; it MUST NOT include the credential itself or any pointer that would let an unauthorized party retrieve it. This type typically has `status` of `connected`.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
@@ -699,13 +733,13 @@ The following is an example error response:
       "status": 401
     }
 
-# Connecting to a Service
+# Connecting to a Service {#connecting}
 
 After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. For planning, the connection's `status` is the primary signal -- whether a credential already exists (`connected`), can be obtained without user interaction (`available`), or requires consent (`consent_required`) -- while the acquisition `type` is the mechanism detail the client uses once a connection is chosen. The general procedure is:
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
-3. For OAuth-based connection types, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}; otherwise proceed without a client identifier if `client_registration` is `none`.
+3. For OAuth-based connection types, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}} -- but only after applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}); otherwise proceed without a client identifier if `client_registration` is `none`.
 4. Obtain the credential according to the connection `type` (see {{connection-types}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth-based types.
 5. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card) -- for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
@@ -771,9 +805,9 @@ For OAuth-based connection methods, a client MUST request tokens scoped to the s
 
 A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. A malicious or compromised Catalog Provider could induce a client to connect to an attacker-controlled service, authorization server, or MCP server, or to present credentials to the wrong party. A client SHOULD obtain the Catalog Provider's base URL from a trusted source ({{endpoint-discovery}}), MUST validate that each service's `base_uri` and each connection's `authorization_server` and `resource` are acceptable under its policy before connecting, and SHOULD apply the same scrutiny to resources referenced by `links` (such as a `service-desc` or `mcp-server-card`).
 
-## Confused Deputy and Client Registration
+## Confused Deputy and Client Registration {#confused-deputy}
 
-When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance. A client MUST apply appropriate consent and validation before registering with, or obtaining tokens from, an authorization server discovered through the catalog, consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}.
+When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance. A client MUST apply appropriate consent and validation before registering with, or obtaining tokens from, an authorization server discovered through the catalog, consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}. Before dynamically registering with a catalog-discovered authorization server, a client SHOULD gate the registration on a trust policy -- an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation -- rather than registering automatically.
 
 ## Authorization Server Mix-Up
 
@@ -855,7 +889,7 @@ IANA is requested to establish the "Service Catalog Service Type" registry for v
 
 ## Service Catalog Service Category Registry {#iana-category}
 
-IANA is requested to establish the "Service Catalog Service Category" registry for values of the `categories` member of a service object and the `category` query parameter ({{service-categories}}). The registration policy is First Come First Served. Each registration contains the category value, a brief description, and a contact or reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
+IANA is requested to establish the "Service Catalog Service Category" registry for values of the `categories` member of a service object and the `category` query parameter ({{service-categories}}). The registration policy is Specification Required, so that the well-known category vocabulary agents plan against stays coherent. Each registration contains the category value, a brief description, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. An implementation-specific or experimental category that is not registered MUST use a collision-resistant, namespaced form (for example, a reverse-DNS prefix such as `com.example.crm`) so it cannot clash with a registered value. Initial contents:
 
 | Category | Description | Reference |
 | -------- | ----------- | --------- |
