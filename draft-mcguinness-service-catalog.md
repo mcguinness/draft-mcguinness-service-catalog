@@ -1,6 +1,6 @@
 ---
-title: "Per-User Service Catalog for Agents"
-abbrev: "Service Catalog"
+title: "Per-User Service Connectivity Discovery"
+abbrev: "Service Connectivity Discovery"
 docName: "draft-mcguinness-service-catalog-latest"
 category: "std"
 # workgroup: "Web Authorization Protocol"
@@ -9,6 +9,7 @@ ipr: "trust200902"
 keyword:
   - "OAuth 2.0"
   - "Discovery"
+  - "Connectivity"
   - "Agents"
   - "Catalog"
   - "MCP"
@@ -112,41 +113,43 @@ informative:
 
 --- abstract
 
-This specification defines the Service Catalog Endpoint, a per-user HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the services a user can reach and how to connect to each. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and each connection method separates how a credential is obtained (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it is presented (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. The catalog reuses APIs.json-style description, well-known link relation types, and OpenAPI security schemes, and lets an agent plan intent-scoped access before requesting any token.
+This specification defines per-user service connectivity discovery: a standardized answer to the question "which services can this user and client connect to right now, and how?" Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint -- discovered from the user's identity provider metadata after sign-in -- and receives a catalog, scoped to that user, of the reachable services and, for each, one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS); OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token.
 
 --- middle
 
 # Introduction
 
-An autonomous agent acting on behalf of a user frequently needs to answer two questions before it can do useful work: *which services can this user reach?* and *how do I connect to a given service and obtain the credentials to call it?* Today, neither question has a standardized, user-scoped answer. Service inventories are maintained out of band (static configuration, proprietary catalogs, or human documentation), and connection details are discovered reactively, one service at a time.
+An autonomous agent acting on behalf of a user needs a basic answer before it can do useful work: *which services can this user and client connect to right now, and how is each connection established?* Today there is no standardized, authorization-aware answer. Service inventories live in static configuration, proprietary catalogs, or human documentation, and connection details are discovered reactively, one service at a time after an authorization failure. Static configuration in particular cannot reflect the per-user and per-client authorization decisions that determine what is actually reachable at a given moment.
 
-Existing discovery mechanisms each solve part of the problem. OAuth 2.0 Protected Resource Metadata {{RFC9728}} lets a client discover the authorization server(s) for a *single* resource it already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata {{RFC8414}} describes a *single* authorization server. The Model Context Protocol authorization specification {{MCP-AUTHORIZATION}} composes these with Dynamic Client Registration {{RFC7591}} and Resource Indicators {{RFC8707}} into a per-service connection flow, and MCP Server Cards {{MCP-SERVER-CARD}} describe a single MCP server's capabilities. APIs.json {{APISJSON}} provides a "sitemap for APIs" for human and tooling consumption, but carries no per-user authorization context. None of these provides a single, user-scoped answer to *what is available to me and how do I connect*.
+Existing discovery mechanisms describe services; they do not say which services a particular user and client may reach, nor how to connect. OAuth 2.0 Protected Resource Metadata {{RFC9728}} describes a *single* resource the client already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata {{RFC8414}} describes a *single* authorization server. The Model Context Protocol authorization specification {{MCP-AUTHORIZATION}}, MCP Server Cards {{MCP-SERVER-CARD}}, A2A Agent Cards {{A2A}}, and APIs.json {{APISJSON}} describe individual services or agents for human and tooling consumption. None answers, for a given user and client, *what is reachable and how do I connect*. The closest relative is OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}}, which performs authorization-aware discovery for one mechanism (token exchange); this document generalizes that idea across connection mechanisms, and a client that only needs token exchange can use the catalog as a superset of it.
 
-This specification defines the **Service Catalog Endpoint**: a single HTTP resource that returns, for the authenticated user, the set of services available to that user and, for each service, the descriptive metadata needed to understand it and one or more **connection methods** needed to obtain credentials and call it. The catalog is produced by a **Catalog Provider**, which MAY aggregate services that span multiple resources, multiple authorization servers, multiple authentication schemes, and multiple administrative domains.
+This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint** and receives, for the authenticated user, the set of reachable services and, for each, the descriptive metadata to understand it and one or more **connection methods** to obtain credentials and call it. The document returned is the *catalog*; the server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
 
-The design is deliberately general:
+It is useful to see this as the reachability analogue of OAuth 2.0 Authorization Server Metadata {{RFC8414}}: where RFC 8414 lets a client discover one authorization server per issuer and its authorization capabilities, this document lets a client discover the reachable services per user and client and their connection capabilities.
 
-* **Multiple service types.** A service may be a conventional HTTP API (`http`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.
+The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
 
-* **Two-layer authentication, OAuth not assumed.** Each connection method separates *credential acquisition* (its `type` -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none) from *credential presentation* (how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.
+* **Discovery** -- which services are reachable for this user and client.
+* **Acquisition** -- how a credential is obtained (the connection `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none).
+* **Presentation** -- how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
+
+Separating these lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.
+
+Beyond this, the design is deliberately general:
+
+* **Multiple service types.** A service may be a conventional HTTP API (`http`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting.
 
 * **Capability-based discovery.** Each service may carry well-known **categories** (such as `email` or `calendar`), so an agent can find a service by what it does rather than by name.
 
-* **Well-known links.** Each service may carry typed **links** (such as documentation, sign-up, terms of service, or the MCP Server Card) using link relation types {{RFC8288}}.
+* **Well-known links.** Each service may carry typed **links** (documentation, sign-up, terms of service, the MCP Server Card, and others) using link relation types {{RFC8288}}.
 
-This specification generalizes target discovery for OAuth 2.0 Token Exchange {{RFC8693}}: token exchange is modeled as one connection method (`token_exchange`) among several. A client that only needs token exchange can use the catalog as a superset of, and an alternative to, {{TOKEN-EXCHANGE-DISCOVERY}}.
+* **Intent-based planning.** An agent can read the catalog, and the descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
 
-This specification provides the following benefits:
+Service types, categories, link relations, and connection types are each extensible through an IANA registry, so the model grows without new protocols.
 
-* **Proactive, aggregated discovery.** A single request returns every service the user can reach across resources, authentication schemes, and domains, rather than discovering one service at a time in reaction to authorization failures.
+## Why Agents Need This
 
-* **User-scoped results.** The catalog reflects real-time policy evaluation for the authenticated user, returning only services and connection methods the user (and the calling client) is permitted to use.
-
-* **Actionable connection metadata.** Each connection method carries enough information for the client to execute the connection, or to deterministically fetch what is missing, without out-of-band configuration.
-
-* **Intent-based planning.** An agent can read the catalog, and the capability descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
-
-* **Extensibility without new mechanisms.** Service types, categories, link relations, and connection methods are added through registries rather than by defining new protocols.
+An autonomous agent cannot realistically, at runtime, scan a user's OpenAPI documents, infer which SaaS systems the user actually has, determine which accounts exist, and derive each service's connection mechanism. Service connectivity discovery answers exactly that: in one request, an agent learns the set of services that are both relevant and connectable for the user, and how to connect, before planning any action. This makes it primarily an agent-facing mechanism, though nothing restricts its use to agents.
 
 ## What the Catalog Is Not
 
@@ -201,7 +204,7 @@ The Service Catalog Endpoint is anchored to the user's identity provider: the OA
 
 2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}), having verified that the metadata `issuer` matches the expected issuer.
 
-    * The metadata value is authoritative; the client SHOULD prefer it when present.
+    * The metadata value is the primary, RECOMMENDED mechanism; the client SHOULD prefer it when present.
     * If the metadata omits `service_catalog_endpoint`, a provider co-located with the issuer MAY serve the endpoint at `{issuer}/.well-known/service-catalog` {{RFC8615}} (see {{iana-well-known}}); this fallback is an optional deployment convenience, not a requirement.
     * A client MUST NOT treat a catalog at an origin different from the issuer as authoritative for the issuer's users on the basis of URL structure alone; cross-origin authority requires the metadata value or explicit configuration.
 
@@ -276,6 +279,14 @@ If the request is valid and authenticated, the Catalog Provider returns an HTTP 
 The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value.
 
 The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`). To let a client refresh a large per-user catalog cheaply, the Catalog Provider SHOULD support conditional requests by returning an `ETag` (and/or `Last-Modified`) and honoring `If-None-Match` (and/or `If-Modified-Since`) {{RFC9110}}, responding 304 (Not Modified) when the catalog is unchanged.
+
+### Authority for Inclusion {#inclusion}
+
+Inclusion of a service or connection method in the catalog is an assertion by the Catalog Provider that the authenticated user and client may use it. The basis for that assertion is provider-defined and may combine, for example, authorization server policy, enterprise administrator policy, the user's account state, and the service provider's registration state; this document does not mandate a particular basis. The following constraints apply:
+
+* A Catalog Provider MUST include only services and connection methods the user and client are permitted to use, to the best of the provider's knowledge; it MUST NOT pad the catalog with services the user cannot use, except to mark them `unavailable` ({{availability}}).
+* Inclusion is a point-in-time assertion, not a guarantee that a call will succeed ({{availability}}); the authoritative authorization decision remains with the service and its authorization server.
+* A client MUST NOT treat inclusion as authorization in itself; it still re-anchors to the resource and obtains a credential through the normal flow ({{authoritative}}).
 
 ### Service Availability and Status {#availability}
 
@@ -505,6 +516,8 @@ status:
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
     * `consent_required`: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).
     * `unavailable`: The method is described for completeness but cannot currently be used by this user.
+
+    These four values are the protocol-relevant distinctions -- whether a credential exists, can be obtained without interaction, requires interaction, or is unusable. Finer operational states (for example, pending administrator approval, an expired credential, or a user-disconnected account) are deployment details, are not standardized, and are conveyed, if at all, through other members or out of band.
 
 account:
 : OPTIONAL. A JSON object identifying the account this connection is associated with, when the user holds (or can establish) more than one account at the service. An account is a distinct identity or subscription the user holds at the service, established through prior authorization or account linking; how accounts are established or linked is out of scope. The object has a REQUIRED `id` (an opaque, stable, provider-assigned identifier for the account), an OPTIONAL `label` (a human-readable name for display, such as "Work"; it MAY be personal data, see {{privacy-considerations}}), and an OPTIONAL `login_hint` (a value the client passes as the OpenID Connect `login_hint` parameter to steer an interactive authorization to this account).
