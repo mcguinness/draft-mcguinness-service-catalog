@@ -107,11 +107,12 @@ Table of Contents
    8.  Privacy Considerations
    9.  IANA Considerations
      9.1.  OAuth Authorization Server Metadata
-     9.2.  Well-Known URI
-     9.3.  Service Catalog Service Type Registry
-     9.4.  Service Catalog Service Category Registry
-     9.5.  Service Catalog Connection Type Registry
-     9.6.  Link Relation Types
+     9.2.  Media Type
+     9.3.  Well-Known URI
+     9.4.  Service Catalog Service Type Registry
+     9.5.  Service Catalog Service Category Registry
+     9.6.  Service Catalog Connection Type Registry
+     9.7.  Link Relation Types
    10. References
      10.1.  Normative References
      10.2.  Informative References
@@ -244,7 +245,7 @@ Table of Contents
    Connection Method:  A description of one way a client can obtain a
       credential and present it to call a service.  A connection method
       separates two layers: an acquisition type (how the credential is
-      obtained; see Section 9.5) and a presentation (how the credential
+      obtained; see Section 9.6) and a presentation (how the credential
       is presented to the service; see Section 3.3.4).  OAuth 2.0 token
       issuance is one acquisition type; others use a pre-provisioned
       credential or none.
@@ -284,7 +285,7 @@ Table of Contents
        the metadata does not contain service_catalog_endpoint, the
        default location is the well-known URI [RFC8615] formed by
        appending service-catalog to /.well-known/ of the issuer (that
-       is, {issuer}/.well-known/service-catalog; see Section 9.2).
+       is, {issuer}/.well-known/service-catalog; see Section 9.3).
 
    3.  Retrieve the catalog.  The client sends an authenticated request
        to the endpoint with the user's access token (Section 3.2).  The
@@ -400,9 +401,8 @@ Table of Contents
    pages of a single pagination sequence so that, absent concurrent
    changes, each matching service appears on exactly one page.  A cursor
    MAY expire.  A request with an expired or otherwise invalid cursor
-   MUST be rejected with an HTTP 400 (Bad Request) and the error code
-   invalid_request (Section 3.8); the client recovers by restarting from
-   the first page.
+   MUST be rejected with an HTTP 400 (Bad Request) (Section 3.8); the
+   client recovers by restarting from the first page.
 
    The following example requests the next page using a cursor from a
    previous response:
@@ -417,7 +417,11 @@ Table of Contents
    If the request is valid and authenticated, the Catalog Provider
    returns an HTTP 200 (OK) response whose body is a JSON [RFC8259]
    object, the *catalog object*. The Content-Type of the response MUST
-   be application/json.
+   be application/service-catalog+json (Section 9.2); the media type
+   suffix +json allows generic JSON tooling to process it.  A JSON
+   Schema for the catalog object is published with this specification,
+   and the catalog object MAY carry a $schema member referencing it, so
+   that clients can validate responses and generate types.
 
    The Catalog Provider MUST evaluate the authenticated user's
    permissions, and the calling client's permissions, when constructing
@@ -436,6 +440,10 @@ Table of Contents
 3.3.1.  Catalog Object
 
    The catalog object contains the following members:
+
+   $schema:  OPTIONAL.  A URI referencing the JSON Schema that describes
+      this catalog object.  Its value also identifies the version of the
+      catalog format in use, allowing the format to evolve.
 
    services:  REQUIRED.  An array of *service objects* (see
       Section 3.3.2), each describing a service available to the user.
@@ -530,7 +538,7 @@ Table of Contents
       mcp-server-card (the service's MCP Server Card [MCP-SERVER-CARD]),
       and agent-card (the service's A2A Agent Card [A2A]).  The relation
       types sign-up, mcp-server-card, and agent-card are registered by
-      this document (see Section 9.6).
+      this document (see Section 9.7).
 
    href:  REQUIRED.  The target URL of the link.
 
@@ -553,7 +561,7 @@ Table of Contents
    A connection object contains the following members:
 
    type:  REQUIRED.  The credential acquisition method: a string drawn
-      from the "Service Catalog Connection Type" registry (Section 9.5).
+      from the "Service Catalog Connection Type" registry (Section 9.6).
       This document defines token_exchange, authorization_code,
       client_credentials, id_jag, pre_authorized, and none.
 
@@ -573,7 +581,23 @@ Table of Contents
       merely restates the security schemes already published in the
       service's descriptor (an OpenAPI [OPENAPI] document via service-
       desc, an A2A Agent Card, or an MCP Server Card); a client obtains
-      those by reference (Section 5).
+      those by reference (Section 5).  For OAuth-based acquisition types
+      the presentation is normally an HTTP bearer token, so present is
+      usually omitted for them; it is primarily useful for non-OAuth
+      presentation.  Because its value is a verbatim OpenAPI Security
+      Scheme Object, its member names follow OpenAPI conventions (for
+      example, mutualTLS) rather than the snake_case used elsewhere in
+      this document.
+
+   security_scheme:  OPTIONAL.  When the service's referenced descriptor
+      defines named security schemes (the keys of an OpenAPI
+      securitySchemes object, or the equivalent in an A2A Agent Card),
+      the name of the scheme that this connection corresponds to.  This
+      lets a client map the connection to a specific scheme in the
+      descriptor rather than inferring it.  Presentation is resolved in
+      this order: an explicit present; otherwise the named
+      security_scheme resolved against the descriptor; otherwise, for
+      OAuth-based acquisition types, an HTTP bearer token [RFC6750].
 
    status:  OPTIONAL.  The per-user state of this connection method, as
       one of the following string values.  If omitted, the client SHOULD
@@ -581,7 +605,10 @@ Table of Contents
 
       *  connected: A valid credential already exists for the user; the
          client may be able to call the service without obtaining a new
-         credential, or can refresh without user interaction.
+         credential, or can refresh without user interaction.  This is a
+         point-in-time indication and MAY be stale (for example, the
+         credential may have since expired or been revoked); a client
+         MUST still handle an authentication failure at call time.
 
       *  available: The client can obtain a credential using this method
          without further user interaction (for example, a token exchange
@@ -620,18 +647,27 @@ Table of Contents
       referenced by a describedby link (Section 3.3.3).
 
    scopes:  OPTIONAL.  An array of OAuth 2.0 scope values Section 3.3 of
-      [RFC6749] to request for this connection.
+      [RFC6749] available to this connection.  This is a coarse,
+      planning-time hint and an upper bound: it lists scopes the user
+      and client may request, not what any particular operation
+      requires.  Operation-level scope requirements come from the
+      service's descriptor (for example, an OpenAPI [OPENAPI] document)
+      and are enforced by the authorization server.  A client SHOULD
+      request the least privilege its task requires rather than the full
+      set.
 
    authorization_details_types:  OPTIONAL.  An array of OAuth 2.0 Rich
       Authorization Requests [RFC9396] authorization_details type
       identifiers (strings) that this connection accepts for this user,
       enabling fine-grained, intent-scoped access requests independently
-      of scopes.  This is the per-service, per-user counterpart to the
-      server-wide authorization_details_types_supported metadata of
-      [RFC9396]: it tells the client which types are usable here, while
-      the schema, documentation, and examples for each type are obtained
-      from the authorization server's Authorization Details Types
-      Metadata [RAR-METADATA] (discovered via this connection's
+      of scopes.  Like scopes, this is a planning-time hint and an upper
+      bound, not a per-operation requirement.  It is the per-service,
+      per-user counterpart to the server-wide
+      authorization_details_types_supported metadata of [RFC9396]: it
+      tells the client which types are usable here, while the schema,
+      documentation, and examples for each type are obtained from the
+      authorization server's Authorization Details Types Metadata
+      [RAR-METADATA] (discovered via this connection's
       authorization_server) rather than restated in the catalog.
 
    client_id:  OPTIONAL.  A static OAuth 2.0 client identifier the
@@ -647,6 +683,20 @@ Table of Contents
       client_registration are absent, the client uses a client identity
       it determines is appropriate by other means.
 
+   For a service protected by OAuth, the authoritative source of these
+   values is the service's Protected Resource Metadata [RFC9728] and the
+   authorization server metadata [RFC8414]; the values carried in a
+   connection object are a convenience that lets a client act without an
+   additional round trip.  A client MAY rely on them directly but SHOULD
+   be prepared to reconcile them with the authoritative metadata (for
+   example, after endpoint or key rotation).  In particular, for mcp
+   services -- and any service that publishes Protected Resource
+   Metadata -- a client SHOULD treat the standard discovery flow
+   ([RFC9728] then [RFC8414]) as authoritative and the connection values
+   as a starting point (see Section 3.4.2).  The catalog's contribution
+   is the user-scoped enumeration of which services and connection
+   methods exist, not a second source of truth for OAuth endpoints.
+
    Connection types define additional type-specific members, as
    described in Section 3.6.  Extensions MAY define additional members
    of the connection object.  Clients MUST ignore members they do not
@@ -656,7 +706,7 @@ Table of Contents
 
    The type member of a service object identifies the kind of service,
    using a value from the "Service Catalog Service Type" registry
-   (Section 9.3).  This document defines three values.
+   (Section 9.4).  This document defines three values.
 
 3.4.1.  http
 
@@ -687,6 +737,14 @@ Table of Contents
    [MCP-AUTHORIZATION], an mcp service typically offers OAuth-based
    connection methods (for example, authorization_code or
    token_exchange); service type and connection type are independent.
+   The MCP authorization flow remains authoritative: a client discovers
+   and validates the server's authorization server through the server's
+   Protected Resource Metadata [RFC9728], as described in
+   [MCP-AUTHORIZATION], and uses the catalog's connection values only as
+   a starting point (Section 3.3.4).  The location and format of the MCP
+   Server Card are defined by the MCP Server Card specification
+   [MCP-SERVER-CARD]; this document does not define them and a Catalog
+   Provider references the card by URL.
 
 3.4.3.  a2a
 
@@ -713,7 +771,7 @@ Table of Contents
 
    The categories member of a service object, and the category query
    parameter (Section 3.2), use well-known category values from the
-   "Service Catalog Service Category" registry (Section 9.4) to describe
+   "Service Catalog Service Category" registry (Section 9.5) to describe
    what a service does.  This document seeds the registry with the
    values email, calendar, contacts, files, chat, tasks, crm, and
    ticketing.  The registry is extensible; an agent can rely on these
@@ -819,10 +877,11 @@ Table of Contents
    Card.
 
    HTTP/1.1 200 OK
-   Content-Type: application/json
+   Content-Type: application/service-catalog+json
    Cache-Control: private, max-age=60
 
    {
+     "$schema": "https://example.com/schemas/service-catalog.json",
      "name": "Example Workspace",
      "updated": "2026-06-16T18:00:00Z",
      "services": [
@@ -867,7 +926,7 @@ Table of Contents
          "mcp": {"transport": "streamable-http"},
          "links": [
            {"rel": "mcp-server-card",
-            "href": "https://mcp.example.com/.well-known/mcp.json"}
+            "href": "https://mcp.example.com/server-card.json"}
          ],
          "connections": [
            {
@@ -922,12 +981,13 @@ Table of Contents
 3.8.  Error Response
 
    If the request fails, the Catalog Provider returns an HTTP error
-   response whose body, when present, is a JSON object using the error
-   format of Section 5.2 of [RFC6749] (error and OPTIONAL
-   error_description).  The HTTP status code is set as follows:
+   response.  The response body, when present, is a problem details
+   object [RFC9457] with the media type application/problem+json.  The
+   HTTP status code is set as follows:
 
    *  401 (Unauthorized): authentication is required and was missing or
-      invalid.
+      invalid.  The Catalog Provider MUST include a WWW-Authenticate
+      header field [RFC6750] indicating how to authenticate.
 
    *  403 (Forbidden): the authenticated client is not authorized to use
       the catalog endpoint.
@@ -941,12 +1001,13 @@ Table of Contents
    The following is an example error response:
 
    HTTP/1.1 401 Unauthorized
-   Content-Type: application/json
+   Content-Type: application/problem+json
    WWW-Authenticate: Bearer
 
    {
-     "error": "invalid_token",
-     "error_description": "The access token is missing or expired"
+     "type": "https://example.com/probs/invalid-token",
+     "title": "The access token is missing or expired",
+     "status": 401
    }
 
 4.  Connecting to a Service
@@ -1082,6 +1143,15 @@ Table of Contents
    consumes that format; such a document is out of scope for this
    specification.
 
+   Several of the above are evolving specifications: A2A [A2A], MCP
+   Server Cards [MCP-SERVER-CARD], and [RAR-METADATA] are referenced
+   here as directional rather than stable dependencies.  The catalog's
+   core function -- per-user enumeration of services and their
+   connection methods -- does not depend on any of them; a Catalog
+   Provider and client can interoperate using only OAuth 2.0 metadata
+   ([RFC9728], [RFC8414]) and human-readable links, and treat references
+   to those evolving formats as optional enhancements.
+
 7.  Security Considerations
 
 7.1.  Authentication and Transport
@@ -1199,7 +1269,37 @@ Table of Contents
 
    Specification Document(s): [[ this document ]]
 
-9.2.  Well-Known URI
+9.2.  Media Type
+
+   IANA is requested to register the following media type in the "Media
+   Types" registry, following the procedure of [RFC6838].
+
+   Type name: application
+
+   Subtype name: service-catalog+json
+
+   Required parameters: N/A
+
+   Optional parameters: N/A
+
+   Encoding considerations: binary; the content is a JSON [RFC8259]
+   value encoded in UTF-8.
+
+   Security considerations: See Section 7 of this document.
+
+   Interoperability considerations: N/A
+
+   Published specification: [[ this document ]]
+
+   Applications that use this media type: OAuth 2.0 clients and
+   autonomous agents that retrieve a per-user service catalog.
+
+   Fragment identifier considerations: Follows the +json structured
+   syntax suffix semantics.
+
+   Change controller: IETF
+
+9.3.  Well-Known URI
 
    IANA is requested to register the following well-known URI in the
    "Well-Known URIs" registry established by [RFC8615].
@@ -1212,7 +1312,7 @@ Table of Contents
 
    Status: permanent
 
-9.3.  Service Catalog Service Type Registry
+9.4.  Service Catalog Service Type Registry
 
    IANA is requested to establish the "Service Catalog Service Type"
    registry for values of the type member of a service object
@@ -1233,7 +1333,7 @@ Table of Contents
 
                                  Table 1
 
-9.4.  Service Catalog Service Category Registry
+9.5.  Service Catalog Service Category Registry
 
    IANA is requested to establish the "Service Catalog Service Category"
    registry for values of the categories member of a service object and
@@ -1265,7 +1365,7 @@ Table of Contents
 
                                  Table 2
 
-9.5.  Service Catalog Connection Type Registry
+9.6.  Service Catalog Connection Type Registry
 
    IANA is requested to establish the "Service Catalog Connection Type"
    registry for values of the type member of a connection object
@@ -1297,7 +1397,7 @@ Table of Contents
 
                                   Table 3
 
-9.6.  Link Relation Types
+9.7.  Link Relation Types
 
    IANA is requested to register the following relation types in the
    "Link Relation Types" registry established by [RFC8288].
@@ -1340,6 +1440,11 @@ Table of Contents
               DOI 10.17487/RFC6750, October 2012,
               <https://www.rfc-editor.org/info/rfc6750>.
 
+   [RFC6838]  Freed, N., Klensin, J., and T. Hansen, "Media Type
+              Specifications and Registration Procedures", BCP 13,
+              RFC 6838, DOI 10.17487/RFC6838, January 2013,
+              <https://www.rfc-editor.org/info/rfc6838>.
+
    [RFC8259]  Bray, T., Ed., "The JavaScript Object Notation (JSON) Data
               Interchange Format", STD 90, RFC 8259,
               DOI 10.17487/RFC8259, December 2017,
@@ -1371,6 +1476,10 @@ Table of Contents
               Rich Authorization Requests", RFC 9396,
               DOI 10.17487/RFC9396, May 2023,
               <https://www.rfc-editor.org/info/rfc9396>.
+
+   [RFC9457]  Nottingham, M., Wilde, E., and S. Dalal, "Problem Details
+              for HTTP APIs", RFC 9457, DOI 10.17487/RFC9457, July 2023,
+              <https://www.rfc-editor.org/info/rfc9457>.
 
    [RFC9728]  Jones, M.B., Hunt, P., and A. Parecki, "OAuth 2.0
               Protected Resource Metadata", RFC 9728,
