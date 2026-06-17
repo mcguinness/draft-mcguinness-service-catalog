@@ -1466,7 +1466,7 @@ Accept: application/json
 </dd>
           <dd class="break"></dd>
 </dl>
-<p id="section-3.2.1-3">A Catalog Provider <span class="bcp14">SHOULD</span> support the <code>category</code>, <code>type</code>, and <code>id</code> filters; support for the other filters is <span class="bcp14">OPTIONAL</span>. Because an unsupported filter is ignored rather than rejected, a client <span class="bcp14">MUST NOT</span> assume a filter was applied and <span class="bcp14">SHOULD</span> apply its own filtering to the result as needed.<a href="#section-3.2.1-3" class="pilcrow">¶</a></p>
+<p id="section-3.2.1-3">A Catalog Provider <span class="bcp14">SHOULD</span> support the <code>category</code>, <code>type</code>, and <code>id</code> filters; support for the other filters is <span class="bcp14">OPTIONAL</span>. A Catalog Provider that paginates (<a href="#pagination" class="auto internal xref">Section 3.2.2</a>) <span class="bcp14">MUST</span> support the <code>category</code>, <code>type</code>, and <code>id</code> filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page. Because an unsupported optional filter is ignored rather than rejected, a client <span class="bcp14">MUST NOT</span> assume such a filter was applied and <span class="bcp14">SHOULD</span> apply its own filtering to the result as needed.<a href="#section-3.2.1-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="pagination">
@@ -1509,7 +1509,7 @@ Accept: application/json
         </h3>
 <p id="section-3.3-1">If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON <span>[<a href="#RFC8259" class="cite xref">RFC8259</a>]</span> object, the <strong>catalog object</strong>. The <code>Content-Type</code> of the response <span class="bcp14">MUST</span> be <code>application/service-catalog+json</code> (<a href="#iana-media-type" class="auto internal xref">Section 9.2</a>); the media type suffix <code>+json</code> allows generic JSON tooling to process it. A JSON Schema for the catalog object is published with this specification, and the catalog object <span class="bcp14">MAY</span> carry a <code>$schema</code> member referencing it, so that clients can validate responses and generate types.<a href="#section-3.3-1" class="pilcrow">¶</a></p>
 <p id="section-3.3-2">The Catalog Provider <span class="bcp14">MUST</span> evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog <span class="bcp14">MUST</span> contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider <span class="bcp14">MUST</span> omit any member that would otherwise contain an empty string, an empty array, or a null value.<a href="#section-3.3-2" class="pilcrow">¶</a></p>
-<p id="section-3.3-3">The Catalog Provider <span class="bcp14">MAY</span> include HTTP caching headers as specified in <span>[<a href="#RFC9111" class="cite xref">RFC9111</a>]</span>. Because the catalog is user specific, any cache directives <span class="bcp14">MUST</span> mark the response as private (for example, <code>Cache-Control: private</code>).<a href="#section-3.3-3" class="pilcrow">¶</a></p>
+<p id="section-3.3-3">The Catalog Provider <span class="bcp14">MAY</span> include HTTP caching headers as specified in <span>[<a href="#RFC9111" class="cite xref">RFC9111</a>]</span>. Because the catalog is user specific, any cache directives <span class="bcp14">MUST</span> mark the response as private (for example, <code>Cache-Control: private</code>). To let a client refresh a large per-user catalog cheaply, the Catalog Provider <span class="bcp14">SHOULD</span> support conditional requests by returning an <code>ETag</code> (and/or <code>Last-Modified</code>) and honoring <code>If-None-Match</code> (and/or <code>If-Modified-Since</code>) <span>[<a href="#RFC9110" class="cite xref">RFC9110</a>]</span>, responding 304 (Not Modified) when the catalog is unchanged.<a href="#section-3.3-3" class="pilcrow">¶</a></p>
 <div id="catalog-object">
 <section id="section-3.3.1">
           <h4 id="name-catalog-object">
@@ -1519,32 +1519,37 @@ Accept: application/json
 <span class="break"></span><dl class="dlParallel" id="section-3.3.1-2">
             <dt id="section-3.3.1-2.1">$schema:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.2">
-              <p id="section-3.3.1-2.2.1"><span class="bcp14">OPTIONAL</span>. A URI referencing the JSON Schema that describes this catalog object. Its value also identifies the version of the catalog format in use, allowing the format to evolve.<a href="#section-3.3.1-2.2.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.2.1"><span class="bcp14">OPTIONAL</span>. A URI referencing the JSON Schema that describes this catalog object, for validation and type generation. This identifies a validation schema, not the protocol version.<a href="#section-3.3.1-2.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.1-2.3">services:</dt>
+<dt id="section-3.3.1-2.3">version:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.4">
-              <p id="section-3.3.1-2.4.1"><span class="bcp14">REQUIRED</span>. An array of <strong>service objects</strong> (see <a href="#service-object" class="auto internal xref">Section 3.3.2</a>), each describing a service available to the user. If the user has access to no services, this member is an empty array.<a href="#section-3.3.1-2.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.4.1"><span class="bcp14">OPTIONAL</span>. The version of the catalog format used in this response, as a string (for example, <code>"1"</code>). A client uses it to adapt to format evolution; absent any value, the client assumes the version defined by this document.<a href="#section-3.3.1-2.4.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.1-2.5">name:</dt>
+<dt id="section-3.3.1-2.5">services:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.6">
-              <p id="section-3.3.1-2.6.1"><span class="bcp14">OPTIONAL</span>. A human-readable name for the catalog.<a href="#section-3.3.1-2.6.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.6.1"><span class="bcp14">REQUIRED</span>. An array of <strong>service objects</strong> (see <a href="#service-object" class="auto internal xref">Section 3.3.2</a>), each describing a service available to the user. If the user has access to no services, this member is an empty array.<a href="#section-3.3.1-2.6.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.1-2.7">description:</dt>
+<dt id="section-3.3.1-2.7">name:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.8">
-              <p id="section-3.3.1-2.8.1"><span class="bcp14">OPTIONAL</span>. A human-readable description of the catalog.<a href="#section-3.3.1-2.8.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.8.1"><span class="bcp14">OPTIONAL</span>. A human-readable name for the catalog.<a href="#section-3.3.1-2.8.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.1-2.9">updated:</dt>
+<dt id="section-3.3.1-2.9">description:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.10">
-              <p id="section-3.3.1-2.10.1"><span class="bcp14">OPTIONAL</span>. The timestamp at which the catalog content was last updated, as an <span>[<a href="#RFC3339" class="cite xref">RFC3339</a>]</span> date-time string.<a href="#section-3.3.1-2.10.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.10.1"><span class="bcp14">OPTIONAL</span>. A human-readable description of the catalog.<a href="#section-3.3.1-2.10.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.1-2.11">next_cursor:</dt>
+<dt id="section-3.3.1-2.11">updated:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.12">
-              <p id="section-3.3.1-2.12.1"><span class="bcp14">OPTIONAL</span>. An opaque string. If present, more services are available than were returned; the client obtains the next page by repeating the request with the <code>cursor</code> query parameter set to this value (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>). If absent, no further services are available.<a href="#section-3.3.1-2.12.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.12.1"><span class="bcp14">OPTIONAL</span>. The timestamp at which the catalog content was last updated, as an <span>[<a href="#RFC3339" class="cite xref">RFC3339</a>]</span> date-time string.<a href="#section-3.3.1-2.12.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.3.1-2.13">next_cursor:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.3.1-2.14">
+              <p id="section-3.3.1-2.14.1"><span class="bcp14">OPTIONAL</span>. An opaque string. If present, more services are available than were returned; the client obtains the next page by repeating the request with the <code>cursor</code> query parameter set to this value (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>). If absent, no further services are available.<a href="#section-3.3.1-2.14.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -1600,7 +1605,7 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.17">base_uri:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.18">
-              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for an <code>http</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for an <code>http</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it. It is the canonical endpoint value; a <code>service</code> link (<a href="#link-object" class="auto internal xref">Section 3.3.3</a>), if also present, points to the same location.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.19">mcp:</dt>
@@ -1663,12 +1668,12 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.4-3.3">present:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-3.4">
-              <p id="section-3.3.4-3.4.1"><span class="bcp14">OPTIONAL</span>. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition <code>type</code>). Its value is an OpenAPI Security Scheme Object <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> -- the same model used by OpenAPI <code>securitySchemes</code> and A2A Agent Cards <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> -- for example <code>{"type": "http", "scheme": "bearer"}</code> for a bearer token, <code>{"type": "apiKey", "in": "header", "name": "X-API-Key"}</code> for an API key, or <code>{"type": "mutualTLS"}</code> for a client certificate. When <code>present</code> is omitted: for acquisition types that yield an access token (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>), the credential is presented as an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; otherwise the client determines presentation from the service's referenced security schemes. The catalog <span class="bcp14">SHOULD NOT</span> inline a <code>present</code> value that merely restates the security schemes already published in the service's descriptor (an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via <code>service-desc</code>, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference (<a href="#intent" class="auto internal xref">Section 5</a>). For OAuth-based acquisition types the presentation is normally an HTTP bearer token, so <code>present</code> is usually omitted for them; it is primarily useful for non-OAuth presentation. Because its value is a verbatim OpenAPI Security Scheme Object, its member names follow OpenAPI conventions (for example, <code>mutualTLS</code>) rather than the snake_case used elsewhere in this document.<a href="#section-3.3.4-3.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-3.4.1"><span class="bcp14">OPTIONAL</span>. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition <code>type</code>). Its value is an OpenAPI Security Scheme Object <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> -- the same model used by OpenAPI <code>securitySchemes</code> and A2A Agent Cards <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> -- for example <code>{"type": "http", "scheme": "bearer"}</code> for a bearer token, <code>{"type": "apiKey", "in": "header", "name": "X-API-Key"}</code> for an API key, or <code>{"type": "mutualTLS"}</code> for a client certificate. When <code>present</code> is omitted: for acquisition types that yield an access token (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>), the credential is presented as an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; otherwise the client determines presentation from the service's referenced security schemes. The catalog <span class="bcp14">SHOULD NOT</span> inline a <code>present</code> value that merely restates the security schemes already published in the service's descriptor (an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via <code>service-desc</code>, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference (<a href="#intent" class="auto internal xref">Section 5</a>). For OAuth-based acquisition types the presentation is normally an HTTP bearer token, so <code>present</code> is usually omitted for them; it is primarily useful for non-OAuth presentation. Because its value is a verbatim OpenAPI Security Scheme Object, its member names follow OpenAPI conventions (for example, <code>mutualTLS</code>) rather than the snake_case used elsewhere in this document. The value <span class="bcp14">MUST</span> be of OpenAPI type <code>http</code>, <code>apiKey</code>, or <code>mutualTLS</code>; the <code>oauth2</code> and <code>openIdConnect</code> scheme types <span class="bcp14">MUST NOT</span> appear in <code>present</code>, because credential acquisition (including OAuth flows) is expressed by the connection <code>type</code>. The <code>present</code> member is primarily for <code>http</code> services that lack a referenced descriptor: for <code>mcp</code> services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither <code>present</code> nor <code>security_scheme</code> is used; for <code>a2a</code> services, presentation follows the agent's Agent Card.<a href="#section-3.3.4-3.4.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-3.5">security_scheme:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-3.6">
-              <p id="section-3.3.4-3.6.1"><span class="bcp14">OPTIONAL</span>. When the service's referenced descriptor defines named security schemes (the keys of an OpenAPI <code>securitySchemes</code> object, or the equivalent in an A2A Agent Card), the name of the scheme that this connection corresponds to. This lets a client map the connection to a specific scheme in the descriptor rather than inferring it. Presentation is resolved in this order: an explicit <code>present</code>; otherwise the named <code>security_scheme</code> resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>.<a href="#section-3.3.4-3.6.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-3.6.1"><span class="bcp14">OPTIONAL</span>. When the service's referenced descriptor defines named security schemes (the keys of an OpenAPI <code>securitySchemes</code> object, or the <code>securitySchemes</code> of an A2A Agent Card), the name of the scheme that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to <code>mcp</code> services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: an explicit <code>present</code>; otherwise the named <code>security_scheme</code> resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>.<a href="#section-3.3.4-3.6.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-3.7">status:</dt>
@@ -1729,8 +1734,20 @@ Accept: application/json
 </dd>
           <dd class="break"></dd>
 </dl>
-<p id="section-3.3.4-6">For a service protected by OAuth, the authoritative source of these values is the service's Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> and the authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>; the values carried in a connection object are a convenience that lets a client act without an additional round trip. A client <span class="bcp14">MAY</span> rely on them directly but <span class="bcp14">SHOULD</span> be prepared to reconcile them with the authoritative metadata (for example, after endpoint or key rotation). In particular, for <code>mcp</code> services -- and any service that publishes Protected Resource Metadata -- a client <span class="bcp14">SHOULD</span> treat the standard discovery flow (<span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> then <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>) as authoritative and the connection values as a starting point (see <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>). The catalog's contribution is the user-scoped enumeration of which services and connection methods exist, not a second source of truth for OAuth endpoints.<a href="#section-3.3.4-6" class="pilcrow">¶</a></p>
-<p id="section-3.3.4-7">Connection types define additional type-specific members, as described in <a href="#connection-types" class="auto internal xref">Section 3.6</a>. Extensions <span class="bcp14">MAY</span> define additional members of the connection object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.4-7" class="pilcrow">¶</a></p>
+<p id="section-3.3.4-6">The OAuth values in a connection object (<code>authorization_server</code>, <code>resource</code>, <code>scopes</code>, and <code>authorization_details_types</code>) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>, the authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:<a href="#section-3.3.4-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-3.3.4-7.1">
+              <p id="section-3.3.4-7.1.1">Before using a connection to obtain or present a token, a client <span class="bcp14">MUST</span> re-anchor trust to the resource it intends to call: it <span class="bcp14">MUST</span> confirm that the connection's <code>authorization_server</code> is listed in the Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> of the service's <code>resource</code> (for <code>mcp</code> services, through the standard MCP flow; see <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>). This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see <a href="#security-considerations" class="auto internal xref">Section 7</a>).<a href="#section-3.3.4-7.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-3.3.4-7.2">
+              <p id="section-3.3.4-7.2.1">If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.<a href="#section-3.3.4-7.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-3.3.4-7.3">
+              <p id="section-3.3.4-7.3.1">To detect change cheaply, a client <span class="bcp14">SHOULD</span> use conditional requests against the catalog (see <a href="#catalog-response" class="auto internal xref">Section 3.3</a>); the catalog's <code>updated</code> time and entity tag indicate whether re-fetching is necessary.<a href="#section-3.3.4-7.3.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-3.3.4-8">The catalog's irreducible contribution is the user-scoped enumeration of which services and connection methods exist, and their per-user <code>status</code> -- not the OAuth endpoints themselves, which remain owned by the authoritative metadata.<a href="#section-3.3.4-8" class="pilcrow">¶</a></p>
+<p id="section-3.3.4-9">Connection types define additional type-specific members, as described in <a href="#connection-types" class="auto internal xref">Section 3.6</a>. Extensions <span class="bcp14">MAY</span> define additional members of the connection object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.4-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1966,6 +1983,10 @@ Cache-Control: private, max-age=60
       "name": "Calendar API",
       "categories": ["calendar"],
       "base_uri": "https://api.calendar.example",
+      "links": [
+        {"rel": "service-desc",
+         "href": "https://api.calendar.example/openapi.json"}
+      ],
       "connections": [
         {
           "type": "pre_authorized",
@@ -2047,7 +2068,7 @@ WWW-Authenticate: Bearer
       <h2 id="name-connecting-to-a-service">
 <a href="#section-4" class="section-number selfRef">4. </a><a href="#name-connecting-to-a-service" class="section-name selfRef">Connecting to a Service</a>
       </h2>
-<p id="section-4-1">After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. The general procedure is:<a href="#section-4-1" class="pilcrow">¶</a></p>
+<p id="section-4-1">After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. For planning, the connection's <code>status</code> is the primary signal -- whether a credential already exists (<code>connected</code>), can be obtained without user interaction (<code>available</code>), or requires consent (<code>consent_required</code>) -- while the acquisition <code>type</code> is the mechanism detail the client uses once a connection is chosen. The general procedure is:<a href="#section-4-1" class="pilcrow">¶</a></p>
 <ol start="1" type="1" class="normal type-1" id="section-4-2">
 <li id="section-4-2.1">
           <p id="section-4-2.1.1">Select a service (for example, by <code>category</code>, <code>tags</code>, or by presenting <code>name</code> and <code>description</code> to the user). For an <code>mcp</code> service, the client <span class="bcp14">MAY</span> first fetch the MCP Server Card (<a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>) to evaluate the server's capabilities.<a href="#section-4-2.1.1" class="pilcrow">¶</a></p>
@@ -2076,7 +2097,7 @@ WWW-Authenticate: Bearer
 <p id="section-5-1">An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog supports planning before commitment in two ways:<a href="#section-5-1" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-5-2.1">
-          <p id="section-5-2.1.1">Plan from descriptors without connecting. A service object's <code>links</code> reference the service's capability descriptor -- for example, an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via a <code>service-desc</code> link, or an MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> via an <code>mcp-server-card</code> link. A client <span class="bcp14">MAY</span> read these to understand a service's operations and resources, and plan, without obtaining any token.<a href="#section-5-2.1.1" class="pilcrow">¶</a></p>
+          <p id="section-5-2.1.1">Plan from descriptors without connecting. A service object's <code>links</code> reference the service's capability descriptor -- for example, an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via a <code>service-desc</code> link, or an MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> via an <code>mcp-server-card</code> link. A client <span class="bcp14">MAY</span> read these to understand a service's operations and resources, and plan, without obtaining any token. The connection's <code>scopes</code> and <code>authorization_details_types</code> are only an upper bound (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>); the descriptor carries the per-operation requirements -- for an OpenAPI service, each operation's <code>security</code> and required scopes -- so a client maps its intended operations to the minimal scopes and authorization details it must request. For a multi-step goal spanning operations or services, a client <span class="bcp14">MAY</span> use a workflow description such as Arazzo <span>[<a href="#ARAZZO" class="cite xref">ARAZZO</a>]</span> to plan the sequence before acquiring any token.<a href="#section-5-2.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-5-2.2">
           <p id="section-5-2.2.1">Connect with minimal access to enumerate, then request what is needed. When an agent must inspect the user's actual resources before planning (for example, to list the user's mailboxes or calendars), it <span class="bcp14">SHOULD</span> select a connection and request the least-privilege access sufficient to enumerate -- narrow <code>scopes</code>, or a minimal <code>authorization_details</code> request limited to the <code>authorization_details_types</code> the connection advertises (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>) -- and then make a further, intent-scoped request for the access it determines it needs.<a href="#section-5-2.2.1" class="pilcrow">¶</a></p>
@@ -2527,6 +2548,10 @@ WWW-Authenticate: Bearer
         <dd>
 <span class="refAuthor">Campbell, B.</span>, <span class="refAuthor">Bradley, J.</span>, and <span class="refAuthor">H. Tschofenig</span>, <span class="refTitle">"Resource Indicators for OAuth 2.0"</span>, <span class="seriesInfo">RFC 8707</span>, <span class="seriesInfo">DOI 10.17487/RFC8707</span>, <time datetime="2020-02" class="refDate">February 2020</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc8707">https://www.rfc-editor.org/info/rfc8707</a>&gt;</span>. </dd>
 <dd class="break"></dd>
+<dt id="RFC9110">[RFC9110]</dt>
+        <dd>
+<span class="refAuthor">Fielding, R., Ed.</span>, <span class="refAuthor">Nottingham, M., Ed.</span>, and <span class="refAuthor">J. Reschke, Ed.</span>, <span class="refTitle">"HTTP Semantics"</span>, <span class="seriesInfo">STD 97</span>, <span class="seriesInfo">RFC 9110</span>, <span class="seriesInfo">DOI 10.17487/RFC9110</span>, <time datetime="2022-06" class="refDate">June 2022</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc9110">https://www.rfc-editor.org/info/rfc9110</a>&gt;</span>. </dd>
+<dd class="break"></dd>
 <dt id="RFC9111">[RFC9111]</dt>
         <dd>
 <span class="refAuthor">Fielding, R., Ed.</span>, <span class="refAuthor">Nottingham, M., Ed.</span>, and <span class="refAuthor">J. Reschke, Ed.</span>, <span class="refTitle">"HTTP Caching"</span>, <span class="seriesInfo">STD 98</span>, <span class="seriesInfo">RFC 9111</span>, <span class="seriesInfo">DOI 10.17487/RFC9111</span>, <time datetime="2022-06" class="refDate">June 2022</time>, <span>&lt;<a href="https://www.rfc-editor.org/info/rfc9111">https://www.rfc-editor.org/info/rfc9111</a>&gt;</span>. </dd>
@@ -2595,6 +2620,10 @@ WWW-Authenticate: Bearer
 <dt id="OPENAPI">[OPENAPI]</dt>
         <dd>
 <span class="refTitle">"OpenAPI Specification"</span>, <span>&lt;<a href="https://spec.openapis.org/oas/latest.html">https://spec.openapis.org/oas/latest.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="ARAZZO">[ARAZZO]</dt>
+        <dd>
+<span class="refTitle">"Arazzo Specification"</span>, <span>&lt;<a href="https://spec.openapis.org/arazzo/latest.html">https://spec.openapis.org/arazzo/latest.html</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 <dt id="A2A">[A2A]</dt>
         <dd>

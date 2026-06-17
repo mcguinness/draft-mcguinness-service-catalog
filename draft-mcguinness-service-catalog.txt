@@ -367,10 +367,13 @@ Table of Contents
       defined criteria.
 
    A Catalog Provider SHOULD support the category, type, and id filters;
-   support for the other filters is OPTIONAL.  Because an unsupported
-   filter is ignored rather than rejected, a client MUST NOT assume a
-   filter was applied and SHOULD apply its own filtering to the result
-   as needed.
+   support for the other filters is OPTIONAL.  A Catalog Provider that
+   paginates (Section 3.2.2) MUST support the category, type, and id
+   filters, so that a client can bound a large result at the server
+   rather than retrieving and locally filtering every page.  Because an
+   unsupported optional filter is ignored rather than rejected, a client
+   MUST NOT assume such a filter was applied and SHOULD apply its own
+   filtering to the result as needed.
 
 3.2.2.  Pagination
 
@@ -435,15 +438,24 @@ Table of Contents
    The Catalog Provider MAY include HTTP caching headers as specified in
    [RFC9111].  Because the catalog is user specific, any cache
    directives MUST mark the response as private (for example, Cache-
-   Control: private).
+   Control: private).  To let a client refresh a large per-user catalog
+   cheaply, the Catalog Provider SHOULD support conditional requests by
+   returning an ETag (and/or Last-Modified) and honoring If-None-Match
+   (and/or If-Modified-Since) [RFC9110], responding 304 (Not Modified)
+   when the catalog is unchanged.
 
 3.3.1.  Catalog Object
 
    The catalog object contains the following members:
 
    $schema:  OPTIONAL.  A URI referencing the JSON Schema that describes
-      this catalog object.  Its value also identifies the version of the
-      catalog format in use, allowing the format to evolve.
+      this catalog object, for validation and type generation.  This
+      identifies a validation schema, not the protocol version.
+
+   version:  OPTIONAL.  The version of the catalog format used in this
+      response, as a string (for example, "1").  A client uses it to
+      adapt to format evolution; absent any value, the client assumes
+      the version defined by this document.
 
    services:  REQUIRED.  An array of *service objects* (see
       Section 3.3.2), each describing a service available to the user.
@@ -503,7 +515,9 @@ Table of Contents
       is hosted: for an http service, the base URL of its API; for an
       mcp service, the MCP server endpoint.  This is the network
       location of the service and is independent of how the client
-      authenticates to it.
+      authenticates to it.  It is the canonical endpoint value; a
+      service link (Section 3.3.3), if also present, points to the same
+      location.
 
    mcp:  OPTIONAL.  Present only when type is mcp; see Section 3.4.2.
 
@@ -587,15 +601,29 @@ Table of Contents
       presentation.  Because its value is a verbatim OpenAPI Security
       Scheme Object, its member names follow OpenAPI conventions (for
       example, mutualTLS) rather than the snake_case used elsewhere in
-      this document.
+      this document.  The value MUST be of OpenAPI type http, apiKey, or
+      mutualTLS; the oauth2 and openIdConnect scheme types MUST NOT
+      appear in present, because credential acquisition (including OAuth
+      flows) is expressed by the connection type.  The present member is
+      primarily for http services that lack a referenced descriptor: for
+      mcp services, presentation follows the MCP specification (a bearer
+      token over the MCP transport) and neither present nor
+      security_scheme is used; for a2a services, presentation follows
+      the agent's Agent Card.
 
    security_scheme:  OPTIONAL.  When the service's referenced descriptor
       defines named security schemes (the keys of an OpenAPI
-      securitySchemes object, or the equivalent in an A2A Agent Card),
-      the name of the scheme that this connection corresponds to.  This
-      lets a client map the connection to a specific scheme in the
-      descriptor rather than inferring it.  Presentation is resolved in
-      this order: an explicit present; otherwise the named
+      securitySchemes object, or the securitySchemes of an A2A Agent
+      Card), the name of the scheme that this connection corresponds to.
+      This lets a client map the connection to a specific scheme rather
+      than inferring it, and is meaningful only for the common case of a
+      single applicable scheme; when the descriptor's security
+      requirements are more complex (multiple required schemes, or
+      alternatives), the client consults the descriptor's security
+      requirements directly.  This member does not apply to mcp
+      services, whose authorization is defined by the MCP specification
+      rather than by named security schemes.  Presentation is resolved
+      in this order: an explicit present; otherwise the named
       security_scheme resolved against the descriptor; otherwise, for
       OAuth-based acquisition types, an HTTP bearer token [RFC6750].
 
@@ -683,19 +711,34 @@ Table of Contents
       client_registration are absent, the client uses a client identity
       it determines is appropriate by other means.
 
-   For a service protected by OAuth, the authoritative source of these
-   values is the service's Protected Resource Metadata [RFC9728] and the
-   authorization server metadata [RFC8414]; the values carried in a
-   connection object are a convenience that lets a client act without an
-   additional round trip.  A client MAY rely on them directly but SHOULD
-   be prepared to reconcile them with the authoritative metadata (for
-   example, after endpoint or key rotation).  In particular, for mcp
-   services -- and any service that publishes Protected Resource
-   Metadata -- a client SHOULD treat the standard discovery flow
-   ([RFC9728] then [RFC8414]) as authoritative and the connection values
-   as a starting point (see Section 3.4.2).  The catalog's contribution
-   is the user-scoped enumeration of which services and connection
-   methods exist, not a second source of truth for OAuth endpoints.
+   The OAuth values in a connection object (authorization_server,
+   resource, scopes, and authorization_details_types) are an
+   optimization: a cache of values whose authoritative sources are the
+   service's Protected Resource Metadata [RFC9728], the authorization
+   server metadata [RFC8414], and the service's descriptor.  They let a
+   client act without extra round trips, but they are not a second
+   source of truth.  Specifically:
+
+   *  Before using a connection to obtain or present a token, a client
+      MUST re-anchor trust to the resource it intends to call: it MUST
+      confirm that the connection's authorization_server is listed in
+      the Protected Resource Metadata [RFC9728] of the service's
+      resource (for mcp services, through the standard MCP flow; see
+      Section 3.4.2).  This prevents a misconfigured or malicious
+      catalog from directing the client to an attacker-controlled
+      authorization server (see Section 7).
+
+   *  If a connection value conflicts with the authoritative metadata,
+      the authoritative metadata takes precedence.
+
+   *  To detect change cheaply, a client SHOULD use conditional requests
+      against the catalog (see Section 3.3); the catalog's updated time
+      and entity tag indicate whether re-fetching is necessary.
+
+   The catalog's irreducible contribution is the user-scoped enumeration
+   of which services and connection methods exist, and their per-user
+   status -- not the OAuth endpoints themselves, which remain owned by
+   the authoritative metadata.
 
    Connection types define additional type-specific members, as
    described in Section 3.6.  Extensions MAY define additional members
@@ -943,6 +986,10 @@ Table of Contents
          "name": "Calendar API",
          "categories": ["calendar"],
          "base_uri": "https://api.calendar.example",
+         "links": [
+           {"rel": "service-desc",
+            "href": "https://api.calendar.example/openapi.json"}
+         ],
          "connections": [
            {
              "type": "pre_authorized",
@@ -1014,8 +1061,12 @@ Table of Contents
 
    After retrieving the catalog, a client connects to a service by
    selecting a service object and one of its connection objects, and
-   then executing the corresponding connection type.  The general
-   procedure is:
+   then executing the corresponding connection type.  For planning, the
+   connection's status is the primary signal -- whether a credential
+   already exists (connected), can be obtained without user interaction
+   (available), or requires consent (consent_required) -- while the
+   acquisition type is the mechanism detail the client uses once a
+   connection is chosen.  The general procedure is:
 
    1.  Select a service (for example, by category, tags, or by
        presenting name and description to the user).  For an mcp
@@ -1059,7 +1110,15 @@ Table of Contents
       example, an OpenAPI [OPENAPI] document via a service-desc link, or
       an MCP Server Card [MCP-SERVER-CARD] via an mcp-server-card link.
       A client MAY read these to understand a service's operations and
-      resources, and plan, without obtaining any token.
+      resources, and plan, without obtaining any token.  The
+      connection's scopes and authorization_details_types are only an
+      upper bound (Section 3.3.4); the descriptor carries the per-
+      operation requirements -- for an OpenAPI service, each operation's
+      security and required scopes -- so a client maps its intended
+      operations to the minimal scopes and authorization details it must
+      request.  For a multi-step goal spanning operations or services, a
+      client MAY use a workflow description such as Arazzo [ARAZZO] to
+      plan the sequence before acquiring any token.
 
    *  Connect with minimal access to enumerate, then request what is
       needed.  When an agent must inspect the user's actual resources
@@ -1467,6 +1526,11 @@ Table of Contents
               Indicators for OAuth 2.0", RFC 8707, DOI 10.17487/RFC8707,
               February 2020, <https://www.rfc-editor.org/info/rfc8707>.
 
+   [RFC9110]  Fielding, R., Ed., Nottingham, M., Ed., and J. Reschke,
+              Ed., "HTTP Semantics", STD 97, RFC 9110,
+              DOI 10.17487/RFC9110, June 2022,
+              <https://www.rfc-editor.org/info/rfc9110>.
+
    [RFC9111]  Fielding, R., Ed., Nottingham, M., Ed., and J. Reschke,
               Ed., "HTTP Caching", STD 98, RFC 9111,
               DOI 10.17487/RFC9111, June 2022,
@@ -1538,6 +1602,9 @@ Table of Contents
 
    [OPENAPI]  "OpenAPI Specification",
               <https://spec.openapis.org/oas/latest.html>.
+
+   [ARAZZO]   "Arazzo Specification",
+              <https://spec.openapis.org/arazzo/latest.html>.
 
    [A2A]      "Agent2Agent (A2A) Protocol", <https://a2a-protocol.org/>.
 
