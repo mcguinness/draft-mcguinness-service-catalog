@@ -35,11 +35,39 @@ normative:
   RFC8615:
   RFC8707:
   RFC9111:
+  RFC9396:
   RFC9728:
 
 informative:
+  RFC7033:
   RFC7591:
   RFC8693:
+  RFC9126:
+  RFC9470:
+  RFC9635:
+  RAR-METADATA:
+    title: "Metadata for OAuth 2.0 Rich Authorization Requests"
+    target: https://datatracker.ietf.org/doc/draft-zehavi-oauth-rar-metadata/
+    author:
+      - ins: A. Zehavi
+        name: Amir Zehavi
+    date: 2026
+  UMA2:
+    title: "User-Managed Access (UMA) 2.0 Grant for OAuth 2.0 Authorization"
+    target: https://docs.kantarainitiative.org/uma/wg/rec-oauth-uma-grant-2.0.html
+    author:
+      - ins: E. Maler
+      - ins: M. Machulak
+      - ins: J. Richer
+    date: 2018
+  OPENAPI:
+    title: "OpenAPI Specification"
+    target: https://spec.openapis.org/oas/latest.html
+    date: false
+  A2A:
+    title: "Agent2Agent (A2A) Protocol"
+    target: https://a2a-protocol.org/
+    date: false
   I-D.oauth-identity-assertion-authz-grant:
     title: OAuth 2.0 Identity Assertion JWT Authorization Grant
     target: https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/
@@ -75,7 +103,7 @@ informative:
 
 --- abstract
 
-This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types.
+This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token.
 
 --- middle
 
@@ -107,6 +135,8 @@ This specification provides the following benefits:
 
 * **Actionable connection metadata.** Each connection method carries enough information for the client to execute the connection, or to deterministically fetch what is missing, without out-of-band configuration.
 
+* **Intent-based planning.** An agent can read the catalog, and the capability descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
+
 * **Extensibility without new mechanisms.** Service types, categories, link relations, and connection methods are added through registries rather than by defining new protocols.
 
 # Conventions and Definitions
@@ -135,9 +165,15 @@ The Service Catalog Endpoint is an HTTP resource that returns the catalog of ser
 
 ## Discovering the Catalog Endpoint {#endpoint-discovery}
 
-A Catalog Provider publishes its Service Catalog Endpoint at the well-known URI {{RFC8615}} formed by appending `service-catalog` to the path `/.well-known/` of the provider's base URL; that is, `https://{provider-host}/.well-known/service-catalog`. The well-known URI is registered in {{iana-well-known}}.
+The Service Catalog Endpoint is anchored to the user's identity provider: the OAuth 2.0 authorization server (or OpenID Connect Provider) that the user signs in to. After the user has authenticated, a client discovers and calls the endpoint as follows:
 
-The base URL of a Catalog Provider is obtained out of band (for example, from the user's identity provider or from organizational configuration). A client MAY also be configured directly with the absolute URL of a Service Catalog Endpoint, in which case the well-known transformation is not used. This specification defines exactly one discovery mechanism; it intentionally does not define an authorization-server metadata parameter, because a catalog may span more than one authorization server and authentication scheme.
+1. Determine the issuer. When the client has completed an OpenID Connect sign-in, the issuer is the `iss` value of the ID token. When the client starts from only a user identifier (for example, an `acct:` URI) and has not yet signed in, it MAY use WebFinger {{RFC7033}} to resolve the issuer, using the relation type `http://openid.net/specs/connect/1.0/issuer`, and then sign in. WebFinger is used only to resolve the issuer; it MUST NOT be used to convey the catalog endpoint or its contents (see {{privacy-considerations}}).
+
+2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}). The client MUST verify that the metadata `issuer` matches the expected issuer. If the metadata does not contain `service_catalog_endpoint`, the default location is the well-known URI {{RFC8615}} formed by appending `service-catalog` to `/.well-known/` of the issuer (that is, `{issuer}/.well-known/service-catalog`; see {{iana-well-known}}).
+
+3. Retrieve the catalog. The client sends an authenticated request to the endpoint with the user's access token ({{catalog-request}}). The catalog is scoped to the user identified by the access token, not by the endpoint URL.
+
+A client MAY instead be configured directly with the absolute URL of a Service Catalog Endpoint, in which case steps 1 and 2 are not used. The Catalog Provider that hosts the endpoint MAY be co-located with the authorization server or operated separately; when operated separately, the access token presented to the endpoint MUST be one the Catalog Provider accepts (for example, issued with the Catalog Provider as an audience).
 
 ## Catalog Request {#catalog-request}
 
@@ -313,6 +349,9 @@ resource:
 scopes:
 : OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} to request for this connection.
 
+authorization_details_types:
+: OPTIONAL. An array of OAuth 2.0 Rich Authorization Requests {{RFC9396}} `authorization_details` type identifiers (strings) that this connection accepts for this user, enabling fine-grained, intent-scoped access requests independently of `scopes`. This is the per-service, per-user counterpart to the server-wide `authorization_details_types_supported` metadata of {{RFC9396}}: it tells the client which types are usable here, while the schema, documentation, and examples for each type are obtained from the authorization server's Authorization Details Types Metadata {{RAR-METADATA}} (discovered via this connection's `authorization_server`) rather than restated in the catalog.
+
 client_id:
 : OPTIONAL. A static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
 
@@ -456,6 +495,7 @@ The following is a non-normative example response showing three services: a REST
               "authorization_server": "https://as.example.com",
               "resource": "https://api.example.com/mail",
               "scopes": ["mail.read", "mail.send"],
+              "authorization_details_types": ["mail.message"],
               "client_registration": "dynamic"
             }
           ]
@@ -526,13 +566,37 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 
 This specification does not define any new credential issuance mechanism. Each connection type parameterizes an existing mechanism.
 
-# Relationship to APIs.json {#apisjson-mapping}
+# Intent-Based Use and Resource Discovery {#intent}
 
-The service object reuses the discoverability model of APIs.json {{APISJSON}} while using a modern, OAuth-aligned JSON vocabulary. A service object maps to an APIs.json API entry as follows: `name` to `name`, `description` to `description`, `base_uri` to `baseURL`, `tags` to `tags`, and `links` to `properties` (where an APIs.json property `type` corresponds to a link `rel` and the property `url` to the link `href`; for example, an OpenAPI property corresponds to a `service-desc` link). The members `type`, `categories`, `mcp`, and `connections` (the last carrying the per-scheme authentication and per-user authorization context) have no APIs.json equivalent. A Catalog Provider MAY additionally serve a static, non-user-specific APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.
+An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog supports planning before commitment in two ways:
 
-# Relationship to Token Exchange Target Service Discovery
+* Plan from descriptors without connecting. A service object's `links` reference the service's capability descriptor -- for example, an OpenAPI {{OPENAPI}} document via a `service-desc` link, or an MCP Server Card {{MCP-SERVER-CARD}} via an `mcp-server-card` link. A client MAY read these to understand a service's operations and resources, and plan, without obtaining any token.
 
-{{TOKEN-EXCHANGE-DISCOVERY}} defines a discovery endpoint specialized for OAuth 2.0 Token Exchange {{RFC8693}}, returning the audiences, resources, and scopes a subject token may be exchanged for. This specification generalizes that capability: the `token_exchange` connection type ({{type-token-exchange}}) carries the same information, and the catalog additionally describes other service types, other authentication schemes, and service-level descriptive metadata. The two specifications are independent; a client MAY use either. This document does not depend on {{TOKEN-EXCHANGE-DISCOVERY}}.
+* Connect with minimal access to enumerate, then request what is needed. When an agent must inspect the user's actual resources before planning (for example, to list the user's mailboxes or calendars), it SHOULD select a connection and request the least-privilege access sufficient to enumerate -- narrow `scopes`, or a minimal `authorization_details` request limited to the `authorization_details_types` the connection advertises ({{connection-object}}) -- and then make a further, intent-scoped request for the access it determines it needs.
+
+Incremental, intent-scoped requests keep each token least-privilege. To support them:
+
+* When a connection advertises `authorization_details_types` and the authorization server offers a pushed authorization request endpoint {{RFC9126}}, the client SHOULD push the (potentially large) `authorization_details` request rather than place it in a front-channel URL.
+
+* A client MUST be prepared for runtime escalation signals it cannot fully predict from the catalog: a resource server MAY indicate that stronger or fresher user authentication is required {{RFC9470}}, or that the presented authorization details are insufficient {{RAR-METADATA}}. In each case the client repeats the request with the indicated requirements.
+
+The catalog is an authorization-filtered overlay: it lists what a user can reach and how to connect, but it does not republish a service's full capability surface. A client obtains the authoritative, and possibly authorization-dependent, capability list from the service itself (for example, an MCP server's runtime tool list) or from a referenced descriptor, not from the catalog.
+
+# Relationship to Other Work {#related-work}
+
+The Service Catalog occupies a layer that existing mechanisms do not: a per-user, authorization-filtered overlay that enumerates a user's reachable services and how to connect to each. It composes with, rather than replaces, the following.
+
+OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}} discovers the audiences, resources, and scopes a subject token may be exchanged for. It is specialized to token exchange; the `token_exchange` connection type ({{type-token-exchange}}) carries the same information as one connection method among several. The two are independent and this document does not depend on it.
+
+Rich Authorization Requests {{RFC9396}} and its metadata extension {{RAR-METADATA}} express and describe fine-grained authorization details, but their metadata is server-wide. The catalog advertises, per service and per user, which `authorization_details` types are usable ({{connection-object}}) and defers each type's schema and documentation to {{RAR-METADATA}}.
+
+Grant Negotiation and Authorization Protocol (GNAP) {{RFC9635}} negotiates the access a client declares it wants at a single grant endpoint; its intent is client-declared, not a server-advertised enumeration of what a user can reach. A catalog entry's `id` and connection values name what a client can subsequently request, whether by token exchange, an OAuth grant, or a GNAP access request.
+
+User-Managed Access (UMA 2.0) {{UMA2}} lets a resource owner share resources with other parties; its resource registration is resource-server-to-authorization-server and is not client-facing, and its resource list is a synchronization aid rather than a browsable, per-user catalog. The catalog fills that client-facing gap.
+
+Agent and tool descriptors -- A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and machine-readable API descriptions such as OpenAPI {{OPENAPI}} -- describe a single service instance, including its capabilities and how it authenticates callers. The catalog references these (via `links`) rather than duplicating them, and adds the per-user authorization context they lack.
+
+APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `name`, `description`, `base_uri` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.
 
 # Security Considerations
 
@@ -564,9 +628,11 @@ A client trusts the Catalog Provider to enumerate services, endpoints, and conne
 
 When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance. A client MUST apply appropriate consent and validation before registering with, or obtaining tokens from, an authorization server discovered through the catalog, consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}.
 
-# Privacy Considerations
+# Privacy Considerations {#privacy-considerations}
 
 The catalog is inherently personal: it describes the services a specific user can access. This may reveal organizational affiliations, tenant memberships, and the user's relationships to third-party services. To protect privacy:
+
+* The catalog, and any per-user catalog endpoint URL, MUST be obtained through an authenticated channel ({{endpoint-discovery}}). In particular, WebFinger {{RFC7033}} MUST NOT be used to convey the catalog endpoint or its contents: WebFinger responses are unauthenticated and, by design, broadly accessible (including cross-origin), so publishing the set of services a user can reach there would disclose personal data to anyone. WebFinger is used only to resolve a user identifier to an issuer.
 
 * The Catalog Provider SHOULD return only information the authenticated user and client are authorized to know, applying the principle of least privilege.
 * The Catalog Provider SHOULD NOT include identifiers of other users or of tenants the user is not associated with.
@@ -574,6 +640,18 @@ The catalog is inherently personal: it describes the services a specific user ca
 * A deployment MAY provide mechanisms for users to review and limit the services exposed through the catalog.
 
 # IANA Considerations
+
+## OAuth Authorization Server Metadata {#iana-as-metadata}
+
+IANA is requested to register the following value in the IANA "OAuth Authorization Server Metadata" registry established by {{RFC8414}}.
+
+Metadata Name: `service_catalog_endpoint`
+
+Metadata Description: URL of the per-user Service Catalog Endpoint associated with this authorization server.
+
+Change Controller: IETF
+
+Specification Document(s): [[ this document ]]
 
 ## Well-Known URI {#iana-well-known}
 
