@@ -35,6 +35,7 @@ normative:
   RFC8414:
   RFC8615:
   RFC8707:
+  RFC9110:
   RFC9111:
   RFC9396:
   RFC9457:
@@ -65,6 +66,10 @@ informative:
   OPENAPI:
     title: "OpenAPI Specification"
     target: https://spec.openapis.org/oas/latest.html
+    date: false
+  ARAZZO:
+    title: "Arazzo Specification"
+    target: https://spec.openapis.org/arazzo/latest.html
     date: false
   A2A:
     title: "Agent2Agent (A2A) Protocol"
@@ -214,7 +219,7 @@ id:
 q:
 : A free-text search string. The Catalog Provider MAY use this value to match services by name, description, or other provider-defined criteria.
 
-A Catalog Provider SHOULD support the `category`, `type`, and `id` filters; support for the other filters is OPTIONAL. Because an unsupported filter is ignored rather than rejected, a client MUST NOT assume a filter was applied and SHOULD apply its own filtering to the result as needed.
+A Catalog Provider SHOULD support the `category`, `type`, and `id` filters; support for the other filters is OPTIONAL. A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, and `id` filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page. Because an unsupported optional filter is ignored rather than rejected, a client MUST NOT assume such a filter was applied and SHOULD apply its own filtering to the result as needed.
 
 ### Pagination {#pagination}
 
@@ -243,14 +248,17 @@ If the request is valid and authenticated, the Catalog Provider returns an HTTP 
 
 The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value.
 
-The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`).
+The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`). To let a client refresh a large per-user catalog cheaply, the Catalog Provider SHOULD support conditional requests by returning an `ETag` (and/or `Last-Modified`) and honoring `If-None-Match` (and/or `If-Modified-Since`) {{RFC9110}}, responding 304 (Not Modified) when the catalog is unchanged.
 
 ### Catalog Object {#catalog-object}
 
 The catalog object contains the following members:
 
 $schema:
-: OPTIONAL. A URI referencing the JSON Schema that describes this catalog object. Its value also identifies the version of the catalog format in use, allowing the format to evolve.
+: OPTIONAL. A URI referencing the JSON Schema that describes this catalog object, for validation and type generation. This identifies a validation schema, not the protocol version.
+
+version:
+: OPTIONAL. The version of the catalog format used in this response, as a string (for example, `"1"`). A client uses it to adapt to format evolution; absent any value, the client assumes the version defined by this document.
 
 services:
 : REQUIRED. An array of **service objects** (see {{service-object}}), each describing a service available to the user. If the user has access to no services, this member is an empty array.
@@ -298,7 +306,7 @@ links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
 
 base_uri:
-: OPTIONAL. The primary endpoint URL at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.
+: OPTIONAL. The primary endpoint URL at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it. It is the canonical endpoint value; a `service` link ({{link-object}}), if also present, points to the same location.
 
 mcp:
 : OPTIONAL. Present only when `type` is `mcp`; see {{type-mcp}}.
@@ -336,10 +344,10 @@ type:
 : REQUIRED. The credential acquisition method: a string drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, and `none`.
 
 present:
-: OPTIONAL. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}} -- for example `{"type": "http", "scheme": "bearer"}` for a bearer token, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}` for an API key, or `{"type": "mutualTLS"}` for a client certificate. When `present` is omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`), the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes. The catalog SHOULD NOT inline a `present` value that merely restates the security schemes already published in the service's descriptor (an OpenAPI {{OPENAPI}} document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}). For OAuth-based acquisition types the presentation is normally an HTTP bearer token, so `present` is usually omitted for them; it is primarily useful for non-OAuth presentation. Because its value is a verbatim OpenAPI Security Scheme Object, its member names follow OpenAPI conventions (for example, `mutualTLS`) rather than the snake_case used elsewhere in this document.
+: OPTIONAL. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}} -- for example `{"type": "http", "scheme": "bearer"}` for a bearer token, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}` for an API key, or `{"type": "mutualTLS"}` for a client certificate. When `present` is omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`), the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes. The catalog SHOULD NOT inline a `present` value that merely restates the security schemes already published in the service's descriptor (an OpenAPI {{OPENAPI}} document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}). For OAuth-based acquisition types the presentation is normally an HTTP bearer token, so `present` is usually omitted for them; it is primarily useful for non-OAuth presentation. Because its value is a verbatim OpenAPI Security Scheme Object, its member names follow OpenAPI conventions (for example, `mutualTLS`) rather than the snake_case used elsewhere in this document. The value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS`; the `oauth2` and `openIdConnect` scheme types MUST NOT appear in `present`, because credential acquisition (including OAuth flows) is expressed by the connection `type`. The `present` member is primarily for `http` services that lack a referenced descriptor: for `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither `present` nor `security_scheme` is used; for `a2a` services, presentation follows the agent's Agent Card.
 
 security_scheme:
-: OPTIONAL. When the service's referenced descriptor defines named security schemes (the keys of an OpenAPI `securitySchemes` object, or the equivalent in an A2A Agent Card), the name of the scheme that this connection corresponds to. This lets a client map the connection to a specific scheme in the descriptor rather than inferring it. Presentation is resolved in this order: an explicit `present`; otherwise the named `security_scheme` resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}.
+: OPTIONAL. When the service's referenced descriptor defines named security schemes (the keys of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card), the name of the scheme that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: an explicit `present`; otherwise the named `security_scheme` resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}.
 
 status:
 : OPTIONAL. The per-user state of this connection method, as one of the following string values. If omitted, the client SHOULD treat the status as `available`.
@@ -372,7 +380,15 @@ client_id:
 client_registration:
 : OPTIONAL. How the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
 
-For a service protected by OAuth, the authoritative source of these values is the service's Protected Resource Metadata {{RFC9728}} and the authorization server metadata {{RFC8414}}; the values carried in a connection object are a convenience that lets a client act without an additional round trip. A client MAY rely on them directly but SHOULD be prepared to reconcile them with the authoritative metadata (for example, after endpoint or key rotation). In particular, for `mcp` services -- and any service that publishes Protected Resource Metadata -- a client SHOULD treat the standard discovery flow ({{RFC9728}} then {{RFC8414}}) as authoritative and the connection values as a starting point (see {{type-mcp}}). The catalog's contribution is the user-scoped enumeration of which services and connection methods exist, not a second source of truth for OAuth endpoints.
+The OAuth values in a connection object (`authorization_server`, `resource`, `scopes`, and `authorization_details_types`) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata {{RFC9728}}, the authorization server metadata {{RFC8414}}, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:
+
+* Before using a connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
+
+* If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.
+
+* To detect change cheaply, a client SHOULD use conditional requests against the catalog (see {{catalog-response}}); the catalog's `updated` time and entity tag indicate whether re-fetching is necessary.
+
+The catalog's irreducible contribution is the user-scoped enumeration of which services and connection methods exist, and their per-user `status` -- not the OAuth endpoints themselves, which remain owned by the authoritative metadata.
 
 Connection types define additional type-specific members, as described in {{connection-types}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
 
@@ -536,6 +552,10 @@ The following is a non-normative example response showing four services: an HTTP
           "name": "Calendar API",
           "categories": ["calendar"],
           "base_uri": "https://api.calendar.example",
+          "links": [
+            {"rel": "service-desc",
+             "href": "https://api.calendar.example/openapi.json"}
+          ],
           "connections": [
             {
               "type": "pre_authorized",
@@ -594,7 +614,7 @@ The following is an example error response:
 
 # Connecting to a Service
 
-After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. The general procedure is:
+After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. For planning, the connection's `status` is the primary signal -- whether a credential already exists (`connected`), can be obtained without user interaction (`available`), or requires consent (`consent_required`) -- while the acquisition `type` is the mechanism detail the client uses once a connection is chosen. The general procedure is:
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
@@ -608,7 +628,7 @@ This specification does not define any new credential issuance mechanism. Each c
 
 An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog supports planning before commitment in two ways:
 
-* Plan from descriptors without connecting. A service object's `links` reference the service's capability descriptor -- for example, an OpenAPI {{OPENAPI}} document via a `service-desc` link, or an MCP Server Card {{MCP-SERVER-CARD}} via an `mcp-server-card` link. A client MAY read these to understand a service's operations and resources, and plan, without obtaining any token.
+* Plan from descriptors without connecting. A service object's `links` reference the service's capability descriptor -- for example, an OpenAPI {{OPENAPI}} document via a `service-desc` link, or an MCP Server Card {{MCP-SERVER-CARD}} via an `mcp-server-card` link. A client MAY read these to understand a service's operations and resources, and plan, without obtaining any token. The connection's `scopes` and `authorization_details_types` are only an upper bound ({{connection-object}}); the descriptor carries the per-operation requirements -- for an OpenAPI service, each operation's `security` and required scopes -- so a client maps its intended operations to the minimal scopes and authorization details it must request. For a multi-step goal spanning operations or services, a client MAY use a workflow description such as Arazzo {{ARAZZO}} to plan the sequence before acquiring any token.
 
 * Connect with minimal access to enumerate, then request what is needed. When an agent must inspect the user's actual resources before planning (for example, to list the user's mailboxes or calendars), it SHOULD select a connection and request the least-privilege access sufficient to enumerate -- narrow `scopes`, or a minimal `authorization_details` request limited to the `authorization_details_types` the connection advertises ({{connection-object}}) -- and then make a further, intent-scoped request for the access it determines it needs.
 
