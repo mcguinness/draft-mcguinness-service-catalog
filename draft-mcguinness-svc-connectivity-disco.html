@@ -1242,6 +1242,9 @@ svg {
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.7.2.6">
                     <p id="section-toc.1-1.5.2.7.2.6.1"><a href="#section-5.7.6" class="auto internal xref">5.7.6</a>.  <a href="#name-pre_authorized" class="internal xref">pre_authorized</a></p>
 </li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.7.2.7">
+                    <p id="section-toc.1-1.5.2.7.2.7.1"><a href="#section-5.7.7" class="auto internal xref">5.7.7</a>.  <a href="#name-proxy_injected" class="internal xref">proxy_injected</a></p>
+</li>
                 </ul>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.8">
@@ -1360,7 +1363,7 @@ svg {
           <p id="section-1-6.1.1"><strong>Discovery</strong> -- which services are reachable for this user and client.<a href="#section-1-6.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-1-6.2">
-          <p id="section-1-6.2.1"><strong>Acquisition</strong> -- how a credential is obtained (the connection <code>type</code>: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, or none).<a href="#section-1-6.2.1" class="pilcrow">¶</a></p>
+          <p id="section-1-6.2.1"><strong>Acquisition</strong> -- how a credential is obtained (the connection <code>type</code>: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, credential injection by a trusted intermediary, or none).<a href="#section-1-6.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-1-6.3">
           <p id="section-1-6.3.1"><strong>Presentation</strong> -- how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme (a bearer token, API key, or mutual TLS).<a href="#section-1-6.3.1" class="pilcrow">¶</a></p>
@@ -1443,7 +1446,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
         <dd class="break"></dd>
 <dt id="section-2-3.7">Connection Method:</dt>
         <dd style="margin-left: 1.5em" id="section-2-3.8">
-          <p id="section-2-3.8.1">One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition <code>type</code> (how the credential is obtained; see <a href="#connection-type-registry" class="auto internal xref">Section 11.6</a>) and a presentation (how the credential is presented to the service; see <a href="#connection-object" class="auto internal xref">Section 5.6</a>). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential or none.<a href="#section-2-3.8.1" class="pilcrow">¶</a></p>
+          <p id="section-2-3.8.1">One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition <code>type</code> (how the credential is obtained; see <a href="#connection-type-registry" class="auto internal xref">Section 11.6</a>) and a presentation (how the credential is presented to the service; see <a href="#connection-object" class="auto internal xref">Section 5.6</a>). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.<a href="#section-2-3.8.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
@@ -1944,7 +1947,7 @@ WWW-Authenticate: Bearer
 <span class="break"></span><dl class="dlParallel" id="section-5.6-3">
           <dt id="section-5.6-3.1">type:</dt>
           <dd style="margin-left: 1.5em" id="section-5.6-3.2">
-            <p id="section-5.6-3.2.1"><span class="bcp14">REQUIRED</span>. A string giving the credential acquisition method, drawn from the "Service Catalog Connection Type" registry (<a href="#connection-type-registry" class="auto internal xref">Section 11.6</a>). This document defines <code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>, <code>pre_authorized</code>, and <code>none</code>.<a href="#section-5.6-3.2.1" class="pilcrow">¶</a></p>
+            <p id="section-5.6-3.2.1"><span class="bcp14">REQUIRED</span>. A string giving the credential acquisition method, drawn from the "Service Catalog Connection Type" registry (<a href="#connection-type-registry" class="auto internal xref">Section 11.6</a>). This document defines <code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>, <code>pre_authorized</code>, <code>proxy_injected</code>, and <code>none</code>.<a href="#section-5.6-3.2.1" class="pilcrow">¶</a></p>
 </dd>
         <dd class="break"></dd>
 </dl>
@@ -2002,7 +2005,7 @@ WWW-Authenticate: Bearer
                 <p id="section-5.6-7.2.2.3.1">No restatement: the catalog <span class="bcp14">SHOULD NOT</span> inline a <code>present</code> value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via <code>service-desc</code>, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference (<a href="#intent" class="auto internal xref">Section 7</a>).<a href="#section-5.6-7.2.2.3.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-5.6-7.2.2.4">
-                <p id="section-5.6-7.2.2.4.1">Applicability: <code>present</code> is primarily for <code>http</code> services that lack a referenced descriptor. For <code>mcp</code> services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither <code>present</code> nor <code>security_scheme</code> is used; for <code>a2a</code> services, presentation follows the agent's Agent Card.<a href="#section-5.6-7.2.2.4.1" class="pilcrow">¶</a></p>
+                <p id="section-5.6-7.2.2.4.1">Applicability: <code>present</code> is primarily for <code>http</code> services that lack a referenced descriptor. For <code>mcp</code> services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither <code>present</code> nor <code>security_scheme</code> is used; for <code>a2a</code> services, presentation follows the agent's Agent Card. For a <code>proxy_injected</code> connection (<a href="#type-proxy-injected" class="auto internal xref">Section 5.7.7</a>), <code>present</code> describes how the client authenticates to the intermediary, not to the service.<a href="#section-5.6-7.2.2.4.1" class="pilcrow">¶</a></p>
 </li>
               <li class="normal" id="section-5.6-7.2.2.5">
                 <p id="section-5.6-7.2.2.5.1">Sender-constrained tokens: when the resource's Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> indicates DPoP-bound access tokens are required (<code>dpop_bound_access_tokens_required</code>), or the authorization server signals DPoP support, the client <span class="bcp14">MUST</span> present a DPoP-bound token <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> rather than a plain bearer token. This requirement is discovered from that metadata rather than restated in the catalog.<a href="#section-5.6-7.2.2.5.1" class="pilcrow">¶</a></p>
@@ -2061,7 +2064,7 @@ WWW-Authenticate: Bearer
               <p id="section-5.6.1-2.2.1">Re-anchoring confirms that the <code>authorization_server</code> is authoritative for the <code>resource</code>; it does not establish that the <code>resource</code> (or <code>base_uri</code>) is the service the user intended, since a compromised provider could supply a <code>resource</code> whose Protected Resource Metadata is self-consistent. For a <code>consent_required</code> service with which the user has no prior relationship, the client <span class="bcp14">MUST</span> independently confirm the resource (for example, by user confirmation or an origin allowlist) before sending credentials.<a href="#section-5.6.1-2.2.1" class="pilcrow">¶</a></p>
 </li>
             <li class="normal" id="section-5.6.1-2.3">
-              <p id="section-5.6.1-2.3.1">Connection methods with no <code>authorization_server</code> -- <code>pre_authorized</code>, <code>none</code>, and any <code>present</code>-only API key or mutual TLS scheme -- cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's <code>base_uri</code>, the client <span class="bcp14">MUST</span> establish the binding between that <code>base_uri</code> (and the credential) and the intended service from a trusted source -- explicit configuration, a trust policy, or user confirmation -- not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in <a href="#connection-object" class="auto internal xref">Section 5.6</a>) is likewise conveyed out of band, since there is no resource metadata to discover it from.<a href="#section-5.6.1-2.3.1" class="pilcrow">¶</a></p>
+              <p id="section-5.6.1-2.3.1">Connection methods with no <code>authorization_server</code> -- <code>pre_authorized</code>, <code>proxy_injected</code>, <code>none</code>, and any <code>present</code>-only API key or mutual TLS scheme -- cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's <code>base_uri</code> (or routing through an intermediary for <code>proxy_injected</code>), the client <span class="bcp14">MUST</span> establish the binding between that <code>base_uri</code> (and the credential or intermediary) and the intended service from a trusted source -- explicit configuration, a trust policy, or user confirmation -- not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in <a href="#connection-object" class="auto internal xref">Section 5.6</a>) is likewise conveyed out of band, since there is no resource metadata to discover it from.<a href="#section-5.6.1-2.3.1" class="pilcrow">¶</a></p>
 </li>
             <li class="normal" id="section-5.6.1-2.4">
               <p id="section-5.6.1-2.4.1">If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.<a href="#section-5.6.1-2.4.1" class="pilcrow">¶</a></p>
@@ -2148,7 +2151,24 @@ WWW-Authenticate: Bearer
 <a href="#section-5.7.6" class="section-number selfRef">5.7.6. </a><a href="#name-pre_authorized" class="section-name selfRef">pre_authorized</a>
           </h4>
 <p id="section-5.7.6-1">The credential is one the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning) -- never through the catalog. The catalog only signals that this method applies and, via the connection's <code>present</code> member (<a href="#connection-object" class="auto internal xref">Section 5.6</a>), how the credential is presented; it <span class="bcp14">MUST NOT</span> include the credential itself or any pointer that would let an unauthorized party retrieve it. This type typically has <code>status</code> of <code>connected</code>.<a href="#section-5.7.6-1" class="pilcrow">¶</a></p>
-<p id="section-5.7.6-2">A Catalog Provider <span class="bcp14">MUST NOT</span> include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.<a href="#section-5.7.6-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="type-proxy-injected">
+<section id="section-5.7.7">
+          <h4 id="name-proxy_injected">
+<a href="#section-5.7.7" class="section-number selfRef">5.7.7. </a><a href="#name-proxy_injected" class="section-name selfRef">proxy_injected</a>
+          </h4>
+<p id="section-5.7.7-1">The client never obtains or holds the service credential. A trusted intermediary -- an egress proxy or gateway -- attaches the credential to the client's requests to the service on the client's behalf. This is the agent-safer model in which a compromised client yields no long-lived service secret; it is compatible with the audience-binding and no-passthrough rules of <a href="#audience-binding" class="auto internal xref">Section 9.4</a>, which the intermediary (acting as the client to the service) observes.<a href="#section-5.7.7-1" class="pilcrow">¶</a></p>
+<p id="section-5.7.7-2">Type-specific members:<a href="#section-5.7.7-2" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-5.7.7-3">
+            <dt id="section-5.7.7-3.1">proxy:</dt>
+            <dd style="margin-left: 1.5em" id="section-5.7.7-3.2">
+              <p id="section-5.7.7-3.2.1"><span class="bcp14">OPTIONAL</span>. A JSON object describing the intermediary. It <span class="bcp14">MAY</span> contain <code>endpoint</code> (a URI through which the client routes its requests to the service); when <code>endpoint</code> is absent, the intermediary operates transparently on the client's egress and is configured out of band.<a href="#section-5.7.7-3.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+</dl>
+<p id="section-5.7.7-4">When the client routes through an explicit <code>endpoint</code>, the connection's <code>present</code> member (<a href="#connection-object" class="auto internal xref">Section 5.6</a>) describes how the client authenticates to the <em>intermediary</em> (for example, with its own bearer token or a sentinel), not to the service; the service-facing credential is held and presented solely by the intermediary, and the catalog <span class="bcp14">MUST NOT</span> convey it. Because a <code>proxy_injected</code> connection has no <code>authorization_server</code>, it cannot be re-anchored (<a href="#authoritative" class="auto internal xref">Section 5.6.1</a>); the client <span class="bcp14">MUST</span> establish trust in the intermediary's <code>endpoint</code> and identity from a trusted source before routing requests through it.<a href="#section-5.7.7-4" class="pilcrow">¶</a></p>
+<p id="section-5.7.7-5">A Catalog Provider <span class="bcp14">MUST NOT</span> include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.<a href="#section-5.7.7-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -2464,7 +2484,7 @@ Cache-Control: private, max-age=60
 <p id="section-9.3-1">A Catalog Provider <span class="bcp14">MUST NOT</span> include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) in the catalog. Connection objects describe how to obtain or present a credential, not the credential itself. Consistent with <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span>, a referenced MCP Server Card likewise <span class="bcp14">MUST NOT</span> contain secrets; a client treats the card as untrusted input and validates it.<a href="#section-9.3-1" class="pilcrow">¶</a></p>
 </section>
 </div>
-<div id="token-audience-binding-and-passthrough">
+<div id="audience-binding">
 <section id="section-9.4">
         <h3 id="name-token-audience-binding-and-">
 <a href="#section-9.4" class="section-number selfRef">9.4. </a><a href="#name-token-audience-binding-and-" class="section-name selfRef">Token Audience Binding and Passthrough</a>
@@ -2776,6 +2796,15 @@ Cache-Control: private, max-age=60
             </tr>
             <tr>
               <td class="text-left" rowspan="1" colspan="1">
+                <code>proxy_injected</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">Credential injected by a trusted intermediary</td>
+              <td class="text-left" rowspan="1" colspan="1">
+                <a href="#type-proxy-injected" class="auto internal xref">Section 5.7.7</a>
+</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
                 <code>none</code>
 </td>
               <td class="text-left" rowspan="1" colspan="1">No credential required (public)</td>
@@ -2995,6 +3024,9 @@ Cache-Control: private, max-age=60
 </li>
         <li class="normal" id="appendix-A-2.6">
           <p id="appendix-A-2.6.1">Clarified multi-account silent acquisition, the <code>audience</code> selector's trust basis, <code>client_credentials</code> status, <code>base_uri</code> vs <code>resource</code>, and the status default caution; dropped the decorative <code>version</code> member.<a href="#appendix-A-2.6.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-2.7">
+          <p id="appendix-A-2.7.1">Added the <code>proxy_injected</code> connection type for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.<a href="#appendix-A-2.7.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 <p id="appendix-A-3">-00<a href="#appendix-A-3" class="pilcrow">¶</a></p>
