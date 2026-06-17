@@ -28,6 +28,7 @@ author:
 
 normative:
   RFC3339:
+  RFC3986:
   RFC6749:
   RFC6750:
   RFC6838:
@@ -133,7 +134,7 @@ The central abstraction is the separation of three concerns that existing mechan
 * **Acquisition** -- how a credential is obtained (the connection `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none).
 * **Presentation** -- how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
 
-Separating these lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.
+Discovery is the catalog's own role; acquisition and presentation are the two layers carried by each connection method ({{connection-object}}). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism; OAuth 2.0 is not assumed.
 
 Beyond this, the design is deliberately general:
 
@@ -158,7 +159,7 @@ The catalog is deliberately narrow. It is **not**:
 * authoritative API or capability metadata -- that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates ({{related-work}});
 * a token issuance or grant protocol -- it describes how to use existing mechanisms and issues no credential itself ({{connecting}});
 * proof of current authorization -- a listed service, or a connection's `connected` status, does not guarantee a subsequent call will succeed ({{availability}});
-* a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting ({{connection-object}}).
+* a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata -- those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting ({{authoritative}}).
 
 # Conventions and Definitions
 
@@ -178,7 +179,9 @@ Service:
 Connection Method:
 : One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `type` (how the credential is obtained; see {{connection-type-registry}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential or none.
 
-All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC8259}} unless otherwise stated.
+All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC3986}} unless otherwise stated.
+
+In this document, the *catalog* (the returned document) and the *Service Catalog Endpoint* are the concrete artifacts; *service connectivity discovery* is the protocol this document defines.
 
 # Overview {#processing-model}
 
@@ -218,7 +221,7 @@ The client retrieves the catalog by sending an HTTP `GET` request to the Service
 
 The client MUST authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. As a mandatory-to-implement baseline that any client can rely on, a Catalog Provider MUST accept an OAuth 2.0 access token presented with the `Authorization` request header field and the `Bearer` scheme {{RFC6750}}, where the token's audience identifies the Catalog Provider; it MAY additionally accept other authentication methods. A client SHOULD use the bearer baseline unless it has out-of-band knowledge of another supported method. If the request is not authenticated and authentication is required, the Catalog Provider MUST return an HTTP 401 (Unauthorized) response.
 
-A client MAY constrain the response with the filtering query parameters in {{filtering}}, and page through a large result with the pagination query parameters in {{pagination}}. A Catalog Provider MUST ignore any query parameter it does not support or understand. All query parameter names and values are case sensitive.
+A client MAY constrain the response with the filtering query parameters in {{filtering}}, and page through a large result with the pagination query parameters in {{pagination}}. A Catalog Provider MUST ignore any query parameter it does not support or understand; a provider that does support a parameter applies it as specified, including rejecting an invalid `limit` or `cursor` ({{pagination}}). All query parameter names and values are case sensitive.
 
 The following is an example request for the user's email services:
 
@@ -258,7 +261,7 @@ A Catalog Provider SHOULD support the `category`, `type`, and `id` filters; supp
 A catalog may be large. A Catalog Provider MAY return services across multiple pages, and a client pages through them using the following OPTIONAL query parameters:
 
 limit:
-: A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider MAY return fewer and MAY impose its own maximum page size; a `limit` greater than that maximum is treated as the maximum. A `limit` that is zero, negative, or not an integer is invalid and MUST be rejected with an HTTP 400 (Bad Request) ({{error-response}}).
+: A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider MAY return fewer and MAY impose its own maximum page size; a `limit` greater than that maximum is treated as the maximum. A Catalog Provider that supports the `limit` parameter MUST reject a `limit` that is zero, negative, or not an integer with an HTTP 400 (Bad Request) ({{error-response}}).
 
 cursor:
 : An opaque pagination cursor obtained from the `next_cursor` member (see {{catalog-object}}) of a previous response. The client MUST treat the cursor as opaque and MUST NOT modify it. A client that sends a `cursor` SHOULD repeat the same filter parameters it used to obtain that cursor; a Catalog Provider MAY reject a request that combines a `cursor` with inconsistent filters.
@@ -501,13 +504,13 @@ present:
 : OPTIONAL. A JSON object describing how the client presents its credential (the service-authentication layer, distinct from the acquisition `type`). Its value is a Security Scheme Object as defined in OpenAPI 3.1 or later {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}}; because it is a verbatim OpenAPI object, its member names follow OpenAPI conventions (for example, `mutualTLS`, `apiKey`) rather than the snake_case used elsewhere in this document, and a client or SDK MUST NOT alter their casing (for example, MUST NOT snake_case-normalize them). The following apply:
 
     * Allowed types: the value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS` -- for example `{"type": "http", "scheme": "bearer"}`, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}`, or `{"type": "mutualTLS"}`. The `oauth2` and `openIdConnect` types MUST NOT appear, because credential acquisition (including OAuth flows) is expressed by the `type` member.
-    * When omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes (see `security_scheme`).
+    * When omitted: presentation is resolved using the precedence order defined under `security_scheme` below.
     * No restatement: the catalog SHOULD NOT inline a `present` value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}).
     * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither `present` nor `security_scheme` is used; for `a2a` services, presentation follows the agent's Agent Card.
     * Sender-constrained tokens: when the resource's Protected Resource Metadata {{RFC9728}} indicates DPoP-bound access tokens are required (`dpop_bound_access_tokens_required`), or the authorization server signals DPoP support, the client MUST present a DPoP-bound token {{RFC9449}} rather than a plain bearer token. This requirement is discovered from that metadata rather than restated in the catalog.
 
 security_scheme:
-: OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: an explicit `present`; otherwise the named `security_scheme` resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}.
+: OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme; when the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: (1) an explicit `present`; (2) the named `security_scheme` resolved against the service's referenced descriptor; (3) for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}; (4) otherwise, the security schemes published in the service's referenced descriptor.
 
 **Per-user state.** The following members convey this connection's state for the authenticated user.
 
@@ -662,10 +665,6 @@ The following is a non-normative example response showing four services: an HTTP
           "name": "Calendar API",
           "categories": ["calendar"],
           "base_uri": "https://api.calendar.example",
-          "links": [
-            {"rel": "service-desc",
-             "href": "https://api.calendar.example/openapi.json"}
-          ],
           "connections": [
             {
               "type": "pre_authorized",
