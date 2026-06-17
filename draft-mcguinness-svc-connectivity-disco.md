@@ -1,7 +1,7 @@
 ---
 title: "Per-User Service Connectivity Discovery"
 abbrev: "Service Connectivity Discovery"
-docName: "draft-mcguinness-service-catalog-latest"
+docName: "draft-mcguinness-svc-connectivity-disco-latest"
 category: "std"
 # workgroup: "Web Authorization Protocol"
 # area: "Security"
@@ -216,7 +216,7 @@ A client MAY instead be configured directly with the absolute URL of a Service C
 
 The client retrieves the catalog by sending an HTTP `GET` request to the Service Catalog Endpoint.
 
-The client MUST authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. A client SHOULD present an OAuth 2.0 access token using the `Authorization` request header field with the `Bearer` scheme {{RFC6750}}; other authentication methods supported by the Catalog Provider MAY be used. If the request is not authenticated and authentication is required, the Catalog Provider MUST return an HTTP 401 (Unauthorized) response.
+The client MUST authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. As a mandatory-to-implement baseline that any client can rely on, a Catalog Provider MUST accept an OAuth 2.0 access token presented with the `Authorization` request header field and the `Bearer` scheme {{RFC6750}}, where the token's audience identifies the Catalog Provider; it MAY additionally accept other authentication methods. A client SHOULD use the bearer baseline unless it has out-of-band knowledge of another supported method. If the request is not authenticated and authentication is required, the Catalog Provider MUST return an HTTP 401 (Unauthorized) response.
 
 A client MAY constrain the response with the filtering query parameters in {{filtering}}, and page through a large result with the pagination query parameters in {{pagination}}. A Catalog Provider MUST ignore any query parameter it does not support or understand. All query parameter names and values are case sensitive.
 
@@ -249,6 +249,8 @@ id:
 q:
 : A free-text search string. The Catalog Provider MAY use this value to match services by name, description, or other provider-defined criteria.
 
+Filtering selects whole service objects; the `connections` array of a returned service is not pruned to the connections that matched. A `status` filter is evaluated against each connection's effective status -- the default `available` when `status` is omitted (see {{connection-object}}).
+
 A Catalog Provider SHOULD support the `category`, `type`, and `id` filters; support for the other filters is OPTIONAL. A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, and `id` filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page. Because an unsupported optional filter is ignored rather than rejected, a client MUST NOT assume such a filter was applied and SHOULD apply its own filtering to the result as needed.
 
 ### Pagination {#pagination}
@@ -256,14 +258,14 @@ A Catalog Provider SHOULD support the `category`, `type`, and `id` filters; supp
 A catalog may be large. A Catalog Provider MAY return services across multiple pages, and a client pages through them using the following OPTIONAL query parameters:
 
 limit:
-: A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider MAY return fewer and MAY impose its own maximum page size; a `limit` greater than that maximum is treated as the maximum.
+: A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider MAY return fewer and MAY impose its own maximum page size; a `limit` greater than that maximum is treated as the maximum. A `limit` that is zero, negative, or not an integer is invalid and MUST be rejected with an HTTP 400 (Bad Request) ({{error-response}}).
 
 cursor:
 : An opaque pagination cursor obtained from the `next_cursor` member (see {{catalog-object}}) of a previous response. The client MUST treat the cursor as opaque and MUST NOT modify it. A client that sends a `cursor` SHOULD repeat the same filter parameters it used to obtain that cursor; a Catalog Provider MAY reject a request that combines a `cursor` with inconsistent filters.
 
-When more services match than are returned in a response, the Catalog Provider includes a `next_cursor` member in the catalog object ({{catalog-object}}); its absence indicates no further services are available. A Catalog Provider MAY also indicate the next page with a Link header field {{RFC8288}} using the relation type `next`. A Catalog Provider MAY paginate even when the client did not supply a `limit`.
+When more services match than are returned in a response, the Catalog Provider includes a `next_cursor` member in the catalog object ({{catalog-object}}); its absence indicates no further services are available. A Catalog Provider MAY also indicate the next page with a Link header field {{RFC8288}} using the relation type `next`; when both are present they MUST identify the same next page, and `next_cursor` is the normative signal (a client MAY ignore the Link header).
 
-The Catalog Provider MUST order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor MAY expire. A request with an expired or otherwise invalid `cursor` MUST be rejected with an HTTP 400 (Bad Request) ({{error-response}}); the client recovers by restarting from the first page.
+The Catalog Provider MUST order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor MAY expire. A request with an expired or otherwise invalid `cursor` MUST be rejected with an HTTP 400 (Bad Request) ({{error-response}}); the client recovers by restarting from the first page. A paginated catalog is a best-effort snapshot, not a transaction: a client MUST NOT assume consistency across pages, since a service or connection returned on an earlier page MAY have changed (or had its authorization revoked) by the time a later page is fetched. A Catalog Provider MAY paginate even when the client did not supply a `limit`.
 
 The following example requests the next page using a cursor from a previous response:
 
@@ -276,7 +278,7 @@ The following example requests the next page using a cursor from a previous resp
 
 If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON {{RFC8259}} object, the **catalog object** ({{catalog-object}}). The `Content-Type` of the response MUST be `application/service-catalog+json` ({{iana-media-type}}); the media type suffix `+json` allows generic JSON tooling to process it. A JSON Schema for the catalog object is published with this specification, and the catalog object MAY carry a `$schema` member referencing it, so that clients can validate responses and generate types. A complete example appears in {{response-example}}.
 
-The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value.
+The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value. The REQUIRED `services` member is the sole exception: it is always present, and is an empty array when no services are available.
 
 The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`). To let a client refresh a large per-user catalog cheaply, the Catalog Provider SHOULD support conditional requests by returning an `ETag` (and/or `Last-Modified`) and honoring `If-None-Match` (and/or `If-Modified-Since`) {{RFC9110}}, responding 304 (Not Modified) when the catalog is unchanged.
 
@@ -308,7 +310,10 @@ If the request fails, the Catalog Provider returns an HTTP error response. The r
 * 401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider MUST include a `WWW-Authenticate` header field {{RFC6750}} indicating how to authenticate.
 * 403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.
 * 400 (Bad Request): the request is malformed, or includes an invalid or expired `cursor` (see {{pagination}}).
+* 429 (Too Many Requests): the client has exceeded a rate limit (see {{information-disclosure}}); the Catalog Provider SHOULD include a `Retry-After` header field.
 * 503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.
+
+The HTTP status code is the authoritative machine-readable error signal; a client MUST NOT depend on the problem-details `type` being present. Because more than one condition maps to 400 (a malformed request and an invalid or expired `cursor`), a Catalog Provider that wishes those to be distinguishable SHOULD use a distinct, stable problem-details `type` URI for each condition, so a client can branch on `type` when present (for example, recover from an invalid `cursor` by restarting pagination) while still relying on the status code otherwise.
 
 The following is an example error response:
 
@@ -331,10 +336,7 @@ This section defines the JSON objects returned by the endpoint: the catalog obje
 The catalog object contains the following members:
 
 $schema:
-: OPTIONAL. A URI referencing the JSON Schema that describes this catalog object, for validation and type generation. This identifies a validation schema, not the protocol version.
-
-version:
-: OPTIONAL. A string giving the version of the catalog format used in this response (for example, `"1"`). A client uses it to adapt to format evolution; absent any value, the client assumes the version defined by this document.
+: OPTIONAL. A URI referencing the JSON Schema that describes this catalog object, for validation and type generation. The catalog format evolves additively: new members are added under the unknown-member rule below and new values through the IANA registries, so no separate version member is defined; a future incompatible revision would be signaled by a new media type.
 
 services:
 : REQUIRED. An array of **service objects** (see {{service-object}}), each describing a service available to the user. If the user has access to no services, this member is an empty array.
@@ -382,7 +384,7 @@ links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
 
 base_uri:
-: OPTIONAL. A URI giving the primary endpoint at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it. It is the canonical endpoint value; a `service` link ({{link-object}}), if also present, points to the same location.
+: OPTIONAL. A URI giving the primary endpoint at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location the client calls, and is distinct from a connection's `resource` member ({{connection-object}}), which is the RFC 8707 resource indicator used when requesting a token and need not be byte-identical to `base_uri`. `base_uri` is the canonical endpoint value; a `service` link ({{link-object}}), if also present, points to the same location. A service object SHOULD carry `base_uri` unless a `service` link supplies the endpoint.
 
 mcp:
 : OPTIONAL. A JSON object present only when `type` is `mcp`; see {{type-mcp}}.
@@ -496,7 +498,7 @@ client_registration:
 **Presentation members.** The following members describe how the acquired credential is presented when calling the service.
 
 present:
-: OPTIONAL. A JSON object describing how the client presents its credential (the service-authentication layer, distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}}; because it is a verbatim OpenAPI object, its member names follow OpenAPI conventions (for example, `mutualTLS`) rather than the snake_case used elsewhere in this document. The following apply:
+: OPTIONAL. A JSON object describing how the client presents its credential (the service-authentication layer, distinct from the acquisition `type`). Its value is a Security Scheme Object as defined in OpenAPI 3.1 or later {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}}; because it is a verbatim OpenAPI object, its member names follow OpenAPI conventions (for example, `mutualTLS`, `apiKey`) rather than the snake_case used elsewhere in this document, and a client or SDK MUST NOT alter their casing (for example, MUST NOT snake_case-normalize them). The following apply:
 
     * Allowed types: the value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS` -- for example `{"type": "http", "scheme": "bearer"}`, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}`, or `{"type": "mutualTLS"}`. The `oauth2` and `openIdConnect` types MUST NOT appear, because credential acquisition (including OAuth flows) is expressed by the `type` member.
     * When omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes (see `security_scheme`).
@@ -510,7 +512,7 @@ security_scheme:
 **Per-user state.** The following members convey this connection's state for the authenticated user.
 
 status:
-: OPTIONAL. A string giving the per-user state of this connection method. If omitted, the client SHOULD treat the status as `available`. One of:
+: OPTIONAL. A string giving the per-user state of this connection method. If omitted, the client SHOULD treat the status as `available`. Because this default is the most actionable value, "not computed" and "verified available" are indistinguishable; a Catalog Provider SHOULD therefore set `status` explicitly, and a security-conscious client MAY treat a connection whose status it cannot confirm as requiring verification before relying on it. One of:
 
     * `connected`: The Catalog Provider knows of an existing user-service relationship or credential grant (for example, a prior authorization, an account link, or a stored token). This indicates a relationship exists, not that a valid credential is in hand: the client may still need to obtain or refresh a token, and the relationship MAY be stale (expired or revoked), so a client MUST still handle an authentication failure at call time.
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
@@ -524,7 +526,7 @@ account:
 
     Two connection objects of the same `type` that differ only by `account` represent two distinct accounts -- for example, two `connected` mailboxes. A connection with no `account` represents establishing a new account, or an account the provider does not distinguish.
 
-    The account is honored differently per acquisition type. For interactive acquisition (`authorization_code`), the client SHOULD pass the account's `login_hint`, or otherwise rely on the authorization server's account selection, to obtain a token for that account. For silent acquisition (`token_exchange`, `id_jag`), the account is determined by the identity of the subject token (or assertion) the client presents; selecting a `connected` account therefore means using the subject token that corresponds to it. The opaque `id` is a correlation handle, not a token request parameter.
+    The account is honored differently per acquisition type. For interactive acquisition (`authorization_code`), the client SHOULD pass the account's `login_hint`, or otherwise rely on the authorization server's account selection, to obtain a token for that account. For silent acquisition (`token_exchange`, `id_jag`), the account is determined by the identity of the subject token (or assertion) the client presents; selecting a `connected` account therefore means using the subject token that corresponds to it. The opaque `id` is a correlation handle, not a token request parameter. The catalog does not, by itself, map an `account` to a particular subject token: for silent multi-account acquisition the client MUST determine that mapping out of band (for example, from the subjects of the subject tokens it already holds). A catalog that lists multiple `connected` accounts on a silent connection type is thus actionable only by a client that already holds the corresponding subject tokens.
 
 Connection types define additional type-specific members, as described in {{connection-types}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
 
@@ -533,6 +535,10 @@ Connection types define additional type-specific members, as described in {{conn
 The OAuth values in a connection object (`authorization_server`, `resource`, `scopes`, and `authorization_details_types`) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata {{RFC9728}}, the authorization server metadata {{RFC8414}}, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:
 
 * Before using a connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
+
+* Re-anchoring confirms that the `authorization_server` is authoritative for the `resource`; it does not establish that the `resource` (or `base_uri`) is the service the user intended, since a compromised provider could supply a `resource` whose Protected Resource Metadata is self-consistent. For a `consent_required` service with which the user has no prior relationship, the client MUST independently confirm the resource (for example, by user confirmation or an origin allowlist) before sending credentials.
+
+* Connection methods with no `authorization_server` -- `pre_authorized`, `none`, and any `present`-only API key or mutual TLS scheme -- cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's `base_uri`, the client MUST establish the binding between that `base_uri` (and the credential) and the intended service from a trusted source -- explicit configuration, a trust policy, or user confirmation -- not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in {{connection-object}}) is likewise conveyed out of band, since there is no resource metadata to discover it from.
 
 * If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.
 
@@ -551,7 +557,7 @@ The client obtains a token by performing an OAuth 2.0 Token Exchange {{RFC8693}}
 Type-specific members:
 
 audience:
-: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI; it MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant; the tenant's descriptive identity is the service object's `tenant` member.
+: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI; it MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant; the tenant's descriptive identity is the service object's `tenant` member. Unlike `token_endpoint`, the `audience` selector has no independent metadata to validate against; it is a catalog-supplied value the client trusts to the extent it trusts the Catalog Provider, bounded by the re-anchored `authorization_server` ({{authoritative}}), which issues and audience-restricts the resulting token. A client SHOULD confirm that the token it receives is bound to the intended service before using it.
 
 supported_token_types:
 : OPTIONAL. An array of token type URIs {{RFC8693}} that may be requested. If omitted, the client may request any token type the authorization server supports.
@@ -562,7 +568,7 @@ The client obtains a token using the OAuth 2.0 authorization code grant {{Sectio
 
 ### client_credentials {#type-client-credentials}
 
-The client obtains a token using the OAuth 2.0 client credentials grant {{Section 4.4 of RFC6749}}, authenticating as itself. The resulting token carries no user identity; this type is appropriate only when the agent acts as itself and the service does not need the user's identity, and the catalog includes it because such a service may still be relevant to the user's task. Its `status` reflects the client's own access, not the user's. This type defines no additional members.
+The client obtains a token using the OAuth 2.0 client credentials grant {{Section 4.4 of RFC6749}}, authenticating as itself. The resulting token carries no user identity; this type is appropriate only when the agent acts as itself and the service does not need the user's identity, and the catalog includes it because such a service may still be relevant to the user's task. Because the per-user `status` vocabulary does not apply cleanly, a `client_credentials` connection SHOULD use `status` `available` (reflecting the client's own access, not the user's); `connected` and `consent_required` do not apply. This type defines no additional members.
 
 ### id_jag {#type-id-jag}
 
@@ -823,12 +829,12 @@ Several of the above are evolving specifications: A2A {{A2A}}, MCP Server Cards 
 
 The Service Catalog Endpoint MUST be served over TLS {{Section 1.6 of RFC6749}}. The Catalog Provider MUST authenticate the request and produce the catalog only for the authenticated user. Credentials MUST NOT be placed in the request URI.
 
-## Information Disclosure
+## Information Disclosure {#information-disclosure}
 
-The catalog reveals the complete set of services a user can reach, together with the authentication schemes and connection methods for each. This is strictly more information than a per-service discovery and is valuable to an attacker for reconnaissance. To mitigate this risk:
+The catalog reveals the complete set of services a user can reach, together with the authentication schemes and connection methods for each. This is strictly more information than a per-service discovery: a single compromised user or client token yields the user's entire reachable map in one call, making the catalog a reconnaissance oracle. To mitigate this risk:
 
-* The Catalog Provider MUST require authentication and return only services and connection methods the authenticated user and client are authorized to use.
-* The Catalog Provider SHOULD apply rate limiting and SHOULD log access for security monitoring.
+* The Catalog Provider MUST require authentication and return only services and connection methods the authenticated user and client are authorized to use, and SHOULD apply data minimization by default rather than relying on the client to request a narrower view (filters are optional and a provider MAY ignore them; see {{filtering}}).
+* The Catalog Provider SHOULD apply rate limiting (signaled with HTTP 429 and `Retry-After`; see {{error-response}}), SHOULD monitor for enumeration-style access patterns, and SHOULD log access for security monitoring.
 * Responses are user specific and MUST NOT be cached by shared caches; cache directives, when present, MUST mark the response as private.
 
 ## No Secrets in the Catalog
@@ -845,7 +851,7 @@ A client trusts the Catalog Provider to enumerate services, endpoints, and conne
 
 ## Confused Deputy and Client Registration {#confused-deputy}
 
-When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance. A client MUST apply appropriate consent and validation before registering with, or obtaining tokens from, an authorization server discovered through the catalog, consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}. Before dynamically registering with a catalog-discovered authorization server, a client SHOULD gate the registration on a trust policy -- an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation -- rather than registering automatically.
+When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance, and registration happens before any token is obtained. A client MUST gate dynamic registration on a trust policy -- an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation -- rather than registering automatically; this requirement is the same gate referenced in the connection procedure ({{connecting}}, step 3). An autonomous client, which typically has no site-specific policy, MUST NOT auto-register with a catalog-discovered authorization server absent such a policy or confirmation, and SHOULD re-anchor the connection's `authorization_server` to the resource's Protected Resource Metadata ({{authoritative}}) before registering, so it does not disclose client metadata to an authorization server it has not verified. This is consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}.
 
 ## Authorization Server Mix-Up
 
@@ -888,7 +894,7 @@ Required parameters: N/A
 
 Optional parameters: N/A
 
-Encoding considerations: binary; the content is a JSON {{RFC8259}} value encoded in UTF-8.
+Encoding considerations: 8bit; the content is a JSON {{RFC8259}} value encoded in UTF-8.
 
 Security considerations: See {{security-considerations}} of this document.
 
@@ -978,6 +984,15 @@ Reference: [[ this document ]]
 
 # Document History
 {:numbered="false"}
+
+-01
+
+* Retitled to "Per-User Service Connectivity Discovery" and repositioned around authorization-aware connectivity discovery.
+* Fixed the omit-empty contradiction: `services` is always present, empty when none.
+* Extended re-anchoring to non-OAuth connections (out-of-band binding for `pre_authorized`/`none`/API key/mTLS), and noted re-anchoring does not establish resource authenticity.
+* Clarified filtering (whole-object selection, effective status), pagination (next-page precedence, `limit` bounds, best-effort snapshot), and the error model (429/`Retry-After`, distinct problem `type`s).
+* Pinned `present` to OpenAPI 3.1+ and forbade casing normalization; added a mandatory-to-implement bearer auth baseline; made the DCR trust-gate a MUST for autonomous clients.
+* Clarified multi-account silent acquisition, the `audience` selector's trust basis, `client_credentials` status, `base_uri` vs `resource`, and the status default caution; dropped the decorative `version` member.
 
 -00
 
