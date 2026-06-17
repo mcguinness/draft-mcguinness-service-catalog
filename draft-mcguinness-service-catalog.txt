@@ -2,7 +2,7 @@
 
 
 
-Web Authorization Protocol                                 K. McGuinness
+Network Working Group                                      K. McGuinness
 Internet-Draft                                               Independent
 Intended status: Standards Track                            17 June 2026
 Expires: 19 December 2026
@@ -28,18 +28,6 @@ Abstract
    example, an email or calendar service by capability, and carry typed
    links (documentation, sign-up, terms, and others) using well-known
    link relation types.
-
-About This Document
-
-   This note is to be removed before publishing as an RFC.
-
-   Status information for this document may be found at
-   https://datatracker.ietf.org/doc/draft-mcguinness-service-catalog/.
-
-   Discussion of this document takes place on the Web Authorization
-   Protocol Working Group mailing list (mailto:oauth@ietf.org), which is
-   archived at https://mailarchive.ietf.org/arch/browse/oauth/.
-   Subscribe at https://www.ietf.org/mailman/listinfo/oauth/.
 
 Status of This Memo
 
@@ -79,6 +67,8 @@ Table of Contents
    3.  Service Catalog Endpoint
      3.1.  Discovering the Catalog Endpoint
      3.2.  Catalog Request
+       3.2.1.  Filtering
+       3.2.2.  Pagination
      3.3.  Catalog Response
        3.3.1.  Catalog Object
        3.3.2.  Service Object
@@ -283,40 +273,101 @@ Table of Contents
    and authentication is required, the Catalog Provider MUST return an
    HTTP 401 (Unauthorized) response.
 
-   A client MAY include the following OPTIONAL query parameters to
-   constrain the response.  A Catalog Provider that does not support a
-   given parameter MUST ignore it.
-
-   category:  A well-known service category value (see Section 3.5),
-      such as email or calendar.  The Catalog Provider SHOULD return
-      only services in the given category.  This parameter MAY be
-      included more than once, in which case the Catalog Provider SHOULD
-      return services that match any of the given categories.
-
-   type:  A service type value (see Section 3.4), such as rest or mcp.
-      The Catalog Provider SHOULD return only services of the given
-      type.
-
-   tag:  A free-form tag value (see the tags member in Section 3.3.2).
-      The Catalog Provider SHOULD return only services that carry the
-      given tag.  This parameter MAY be included more than once, in
-      which case the Catalog Provider SHOULD return services that carry
-      all of the given tags.
-
-   q:  A free-text search string.  The Catalog Provider MAY use this
-      value to filter services by name, description, or other provider-
-      defined criteria.
-
-   limit:  A positive integer indicating the maximum number of services
-      the client wishes to receive in a single response.  The Catalog
-      Provider MAY return fewer.
-
-   cursor:  An opaque pagination cursor obtained from the next_cursor
-      member of a previous response (see Section 3.3.1).
+   A client MAY constrain the response with the filtering query
+   parameters in Section 3.2.1, and page through a large result with the
+   pagination query parameters in Section 3.2.2.  A Catalog Provider
+   MUST ignore any query parameter it does not support or understand.
+   All query parameter names and values are case sensitive.
 
    The following is an example request for the user's email services:
 
    GET /.well-known/service-catalog?category=email HTTP/1.1
+   Host: catalog.example.com
+   Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
+   Accept: application/json
+
+3.2.1.  Filtering
+
+   A client MAY include the following OPTIONAL query parameters to
+   filter the services returned.  When several different filter
+   parameters are present, a service is returned only if it matches all
+   of them (logical AND).  When a single filter parameter is repeated, a
+   service is returned if it matches any of the repeated values (logical
+   OR), except for tag as noted below.  Filtering is applied before
+   pagination (Section 3.2.2).
+
+   category:  A well-known service category value (see Section 3.5),
+      such as email or calendar.  Only services in the given category
+      are returned.  MAY be repeated (OR).
+
+   type:  A service type value (see Section 3.4), such as rest or mcp.
+      Only services of the given type are returned.  MAY be repeated
+      (OR).
+
+   status:  A connection status value (see Section 3.3.4): connected,
+      available, consent_required, or unavailable.  Only services that
+      have at least one connection method with the given status are
+      returned.  MAY be repeated (OR).  For example,
+      status=connected&status=available returns services the client can
+      use without user interaction.
+
+   tag:  A free-form tag value (see the tags member in Section 3.3.2).
+      Only services that carry the given tag are returned.  MAY be
+      repeated; when repeated, a service is returned only if it carries
+      all of the given tags (AND).
+
+   id:  A service identifier (see the id member in Section 3.3.2).  Only
+      the service with the given identifier is returned.  MAY be
+      repeated (OR).  This supports refreshing one or more already-known
+      services.
+
+   q:  A free-text search string.  The Catalog Provider MAY use this
+      value to match services by name, description, or other provider-
+      defined criteria.
+
+   A Catalog Provider SHOULD support the category, type, and id filters;
+   support for the other filters is OPTIONAL.  Because an unsupported
+   filter is ignored rather than rejected, a client MUST NOT assume a
+   filter was applied and SHOULD apply its own filtering to the result
+   as needed.
+
+3.2.2.  Pagination
+
+   A catalog may be large.  A Catalog Provider MAY return services
+   across multiple pages, and a client pages through them using the
+   following OPTIONAL query parameters:
+
+   limit:  A positive integer indicating the maximum number of services
+      the client wishes to receive in a single response.  The Catalog
+      Provider MAY return fewer and MAY impose its own maximum page
+      size; a limit greater than that maximum is treated as the maximum.
+
+   cursor:  An opaque pagination cursor obtained from the next_cursor
+      member (see Section 3.3.1) of a previous response.  The client
+      MUST treat the cursor as opaque and MUST NOT modify it.  A client
+      that sends a cursor SHOULD repeat the same filter parameters it
+      used to obtain that cursor; a Catalog Provider MAY reject a
+      request that combines a cursor with inconsistent filters.
+
+   When more services match than are returned in a response, the Catalog
+   Provider includes a next_cursor member in the catalog object
+   (Section 3.3.1); its absence indicates no further services are
+   available.  A Catalog Provider MAY also indicate the next page with a
+   Link header field [RFC8288] using the relation type next.  A Catalog
+   Provider MAY paginate even when the client did not supply a limit.
+
+   The Catalog Provider MUST order services consistently across the
+   pages of a single pagination sequence so that, absent concurrent
+   changes, each matching service appears on exactly one page.  A cursor
+   MAY expire.  A request with an expired or otherwise invalid cursor
+   MUST be rejected with an HTTP 400 (Bad Request) and the error code
+   invalid_request (Section 3.8); the client recovers by restarting from
+   the first page.
+
+   The following example requests the next page using a cursor from a
+   previous response:
+
+   GET /.well-known/service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
    Host: catalog.example.com
    Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
    Accept: application/json
@@ -361,8 +412,8 @@ Table of Contents
    next_cursor:  OPTIONAL.  An opaque string.  If present, more services
       are available than were returned; the client obtains the next page
       by repeating the request with the cursor query parameter set to
-      this value (see Section 3.2).  If absent, no further services are
-      available.
+      this value (see Section 3.2.2).  If absent, no further services
+      are available.
 
    Extensions MAY define additional members of the catalog object.
    Clients MUST ignore members they do not understand.
@@ -785,7 +836,8 @@ Table of Contents
    *  403 (Forbidden): the authenticated client is not authorized to use
       the catalog endpoint.
 
-   *  400 (Bad Request): the request is otherwise malformed.
+   *  400 (Bad Request): the request is malformed, or includes an
+      invalid or expired cursor (see Section 3.2.2).
 
    *  503 (Service Unavailable): the Catalog Provider is temporarily
       unable to handle the request.

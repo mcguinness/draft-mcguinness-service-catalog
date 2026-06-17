@@ -1060,7 +1060,7 @@ svg {
 <div id="internal-metadata" class="document-information">
 <dl id="identifiers">
 <dt class="label-workgroup">Workgroup:</dt>
-<dd class="workgroup">Web Authorization Protocol</dd>
+<dd class="workgroup">Network Working Group</dd>
 <dt class="label-internet-draft">Internet-Draft:</dt>
 <dd class="internet-draft">draft-mcguinness-service-catalog-latest</dd>
 <dt class="label-published">Published:</dt>
@@ -1084,19 +1084,6 @@ svg {
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
 <p id="section-abstract-1">This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
-</section>
-<section class="note rfcEditorRemove" id="section-note.1">
-      <h2 id="name-about-this-document">
-<a href="#name-about-this-document" class="section-name selfRef">About This Document</a>
-      </h2>
-<p id="section-note.1-1">This note is to be removed before publishing as an RFC.<a href="#section-note.1-1" class="pilcrow">¶</a></p>
-<p id="section-note.1-2">
-        Status information for this document may be found at <span><a href="https://datatracker.ietf.org/doc/draft-mcguinness-service-catalog/">https://datatracker.ietf.org/doc/draft-mcguinness-service-catalog/</a></span>.<a href="#section-note.1-2" class="pilcrow">¶</a></p>
-<p id="section-note.1-3">
-        Discussion of this document takes place on the
-        Web Authorization Protocol Working Group mailing list (<span><a href="mailto:oauth@ietf.org">mailto:oauth@ietf.org</a></span>),
-        which is archived at <span><a href="https://mailarchive.ietf.org/arch/browse/oauth/">https://mailarchive.ietf.org/arch/browse/oauth/</a></span>.
-        Subscribe at <span><a href="https://www.ietf.org/mailman/listinfo/oauth/">https://www.ietf.org/mailman/listinfo/oauth/</a></span>.<a href="#section-note.1-3" class="pilcrow">¶</a></p>
 </section>
 <div id="status-of-memo">
 <section id="section-boilerplate.1">
@@ -1160,6 +1147,14 @@ svg {
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.2">
                 <p id="section-toc.1-1.3.2.2.1"><a href="#section-3.2" class="auto internal xref">3.2</a>.  <a href="#name-catalog-request" class="internal xref">Catalog Request</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.2.2.1">
+                    <p id="section-toc.1-1.3.2.2.2.1.1"><a href="#section-3.2.1" class="auto internal xref">3.2.1</a>.  <a href="#name-filtering" class="internal xref">Filtering</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.2.2.2">
+                    <p id="section-toc.1-1.3.2.2.2.2.1"><a href="#section-3.2.2" class="auto internal xref">3.2.2</a>.  <a href="#name-pagination" class="internal xref">Pagination</a></p>
+</li>
+                </ul>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.3">
                 <p id="section-toc.1-1.3.2.3.1"><a href="#section-3.3" class="auto internal xref">3.3</a>.  <a href="#name-catalog-response" class="internal xref">Catalog Response</a></p>
@@ -1406,47 +1401,87 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
         </h3>
 <p id="section-3.2-1">The client retrieves the catalog by sending an HTTP <code>GET</code> request to the Service Catalog Endpoint.<a href="#section-3.2-1" class="pilcrow">¶</a></p>
 <p id="section-3.2-2">The client <span class="bcp14">MUST</span> authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. A client <span class="bcp14">SHOULD</span> present an OAuth 2.0 access token using the <code>Authorization</code> request header field with the <code>Bearer</code> scheme <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>; other authentication methods supported by the Catalog Provider <span class="bcp14">MAY</span> be used. If the request is not authenticated and authentication is required, the Catalog Provider <span class="bcp14">MUST</span> return an HTTP 401 (Unauthorized) response.<a href="#section-3.2-2" class="pilcrow">¶</a></p>
-<p id="section-3.2-3">A client <span class="bcp14">MAY</span> include the following <span class="bcp14">OPTIONAL</span> query parameters to constrain the response. A Catalog Provider that does not support a given parameter <span class="bcp14">MUST</span> ignore it.<a href="#section-3.2-3" class="pilcrow">¶</a></p>
-<span class="break"></span><dl class="dlParallel" id="section-3.2-4">
-          <dt id="section-3.2-4.1">category:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.2">
-            <p id="section-3.2-4.2.1">A well-known service category value (see <a href="#service-categories" class="auto internal xref">Section 3.5</a>), such as <code>email</code> or <code>calendar</code>. The Catalog Provider <span class="bcp14">SHOULD</span> return only services in the given category. This parameter <span class="bcp14">MAY</span> be included more than once, in which case the Catalog Provider <span class="bcp14">SHOULD</span> return services that match any of the given categories.<a href="#section-3.2-4.2.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-<dt id="section-3.2-4.3">type:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.4">
-            <p id="section-3.2-4.4.1">A service type value (see <a href="#service-types" class="auto internal xref">Section 3.4</a>), such as <code>rest</code> or <code>mcp</code>. The Catalog Provider <span class="bcp14">SHOULD</span> return only services of the given type.<a href="#section-3.2-4.4.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-<dt id="section-3.2-4.5">tag:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.6">
-            <p id="section-3.2-4.6.1">A free-form tag value (see the <code>tags</code> member in <a href="#service-object" class="auto internal xref">Section 3.3.2</a>). The Catalog Provider <span class="bcp14">SHOULD</span> return only services that carry the given tag. This parameter <span class="bcp14">MAY</span> be included more than once, in which case the Catalog Provider <span class="bcp14">SHOULD</span> return services that carry all of the given tags.<a href="#section-3.2-4.6.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-<dt id="section-3.2-4.7">q:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.8">
-            <p id="section-3.2-4.8.1">A free-text search string. The Catalog Provider <span class="bcp14">MAY</span> use this value to filter services by name, description, or other provider-defined criteria.<a href="#section-3.2-4.8.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-<dt id="section-3.2-4.9">limit:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.10">
-            <p id="section-3.2-4.10.1">A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider <span class="bcp14">MAY</span> return fewer.<a href="#section-3.2-4.10.1" class="pilcrow">¶</a></p>
-</dd>
-          <dd class="break"></dd>
-<dt id="section-3.2-4.11">cursor:</dt>
-          <dd style="margin-left: 1.5em" id="section-3.2-4.12">
-            <p id="section-3.2-4.12.1">An opaque pagination cursor obtained from the <code>next_cursor</code> member of a previous response (see <a href="#catalog-object" class="auto internal xref">Section 3.3.1</a>).<a href="#section-3.2-4.12.1" class="pilcrow">¶</a></p>
-</dd>
-        <dd class="break"></dd>
-</dl>
-<p id="section-3.2-5">The following is an example request for the user's email services:<a href="#section-3.2-5" class="pilcrow">¶</a></p>
-<div class="alignLeft art-text artwork" id="section-3.2-6">
+<p id="section-3.2-3">A client <span class="bcp14">MAY</span> constrain the response with the filtering query parameters in <a href="#filtering" class="auto internal xref">Section 3.2.1</a>, and page through a large result with the pagination query parameters in <a href="#pagination" class="auto internal xref">Section 3.2.2</a>. A Catalog Provider <span class="bcp14">MUST</span> ignore any query parameter it does not support or understand. All query parameter names and values are case sensitive.<a href="#section-3.2-3" class="pilcrow">¶</a></p>
+<p id="section-3.2-4">The following is an example request for the user's email services:<a href="#section-3.2-4" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3.2-5">
 <pre>
 GET /.well-known/service-catalog?category=email HTTP/1.1
 Host: catalog.example.com
 Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
 Accept: application/json
-</pre><a href="#section-3.2-6" class="pilcrow">¶</a>
+</pre><a href="#section-3.2-5" class="pilcrow">¶</a>
+</div>
+<div id="filtering">
+<section id="section-3.2.1">
+          <h4 id="name-filtering">
+<a href="#section-3.2.1" class="section-number selfRef">3.2.1. </a><a href="#name-filtering" class="section-name selfRef">Filtering</a>
+          </h4>
+<p id="section-3.2.1-1">A client <span class="bcp14">MAY</span> include the following <span class="bcp14">OPTIONAL</span> query parameters to filter the services returned. When several different filter parameters are present, a service is returned only if it matches all of them (logical AND). When a single filter parameter is repeated, a service is returned if it matches any of the repeated values (logical OR), except for <code>tag</code> as noted below. Filtering is applied before pagination (<a href="#pagination" class="auto internal xref">Section 3.2.2</a>).<a href="#section-3.2.1-1" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-3.2.1-2">
+            <dt id="section-3.2.1-2.1">category:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.2">
+              <p id="section-3.2.1-2.2.1">A well-known service category value (see <a href="#service-categories" class="auto internal xref">Section 3.5</a>), such as <code>email</code> or <code>calendar</code>. Only services in the given category are returned. <span class="bcp14">MAY</span> be repeated (OR).<a href="#section-3.2.1-2.2.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.1-2.3">type:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.4">
+              <p id="section-3.2.1-2.4.1">A service type value (see <a href="#service-types" class="auto internal xref">Section 3.4</a>), such as <code>rest</code> or <code>mcp</code>. Only services of the given type are returned. <span class="bcp14">MAY</span> be repeated (OR).<a href="#section-3.2.1-2.4.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.1-2.5">status:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.6">
+              <p id="section-3.2.1-2.6.1">A connection status value (see <a href="#connection-object" class="auto internal xref">Section 3.3.4</a>): <code>connected</code>, <code>available</code>, <code>consent_required</code>, or <code>unavailable</code>. Only services that have at least one connection method with the given status are returned. <span class="bcp14">MAY</span> be repeated (OR). For example, <code>status=connected&amp;status=available</code> returns services the client can use without user interaction.<a href="#section-3.2.1-2.6.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.1-2.7">tag:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.8">
+              <p id="section-3.2.1-2.8.1">A free-form tag value (see the <code>tags</code> member in <a href="#service-object" class="auto internal xref">Section 3.3.2</a>). Only services that carry the given tag are returned. <span class="bcp14">MAY</span> be repeated; when repeated, a service is returned only if it carries all of the given tags (AND).<a href="#section-3.2.1-2.8.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.1-2.9">id:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.10">
+              <p id="section-3.2.1-2.10.1">A service identifier (see the <code>id</code> member in <a href="#service-object" class="auto internal xref">Section 3.3.2</a>). Only the service with the given identifier is returned. <span class="bcp14">MAY</span> be repeated (OR). This supports refreshing one or more already-known services.<a href="#section-3.2.1-2.10.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.1-2.11">q:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.1-2.12">
+              <p id="section-3.2.1-2.12.1">A free-text search string. The Catalog Provider <span class="bcp14">MAY</span> use this value to match services by name, description, or other provider-defined criteria.<a href="#section-3.2.1-2.12.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+</dl>
+<p id="section-3.2.1-3">A Catalog Provider <span class="bcp14">SHOULD</span> support the <code>category</code>, <code>type</code>, and <code>id</code> filters; support for the other filters is <span class="bcp14">OPTIONAL</span>. Because an unsupported filter is ignored rather than rejected, a client <span class="bcp14">MUST NOT</span> assume a filter was applied and <span class="bcp14">SHOULD</span> apply its own filtering to the result as needed.<a href="#section-3.2.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="pagination">
+<section id="section-3.2.2">
+          <h4 id="name-pagination">
+<a href="#section-3.2.2" class="section-number selfRef">3.2.2. </a><a href="#name-pagination" class="section-name selfRef">Pagination</a>
+          </h4>
+<p id="section-3.2.2-1">A catalog may be large. A Catalog Provider <span class="bcp14">MAY</span> return services across multiple pages, and a client pages through them using the following <span class="bcp14">OPTIONAL</span> query parameters:<a href="#section-3.2.2-1" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-3.2.2-2">
+            <dt id="section-3.2.2-2.1">limit:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.2-2.2">
+              <p id="section-3.2.2-2.2.1">A positive integer indicating the maximum number of services the client wishes to receive in a single response. The Catalog Provider <span class="bcp14">MAY</span> return fewer and <span class="bcp14">MAY</span> impose its own maximum page size; a <code>limit</code> greater than that maximum is treated as the maximum.<a href="#section-3.2.2-2.2.1" class="pilcrow">¶</a></p>
+</dd>
+            <dd class="break"></dd>
+<dt id="section-3.2.2-2.3">cursor:</dt>
+            <dd style="margin-left: 1.5em" id="section-3.2.2-2.4">
+              <p id="section-3.2.2-2.4.1">An opaque pagination cursor obtained from the <code>next_cursor</code> member (see <a href="#catalog-object" class="auto internal xref">Section 3.3.1</a>) of a previous response. The client <span class="bcp14">MUST</span> treat the cursor as opaque and <span class="bcp14">MUST NOT</span> modify it. A client that sends a <code>cursor</code> <span class="bcp14">SHOULD</span> repeat the same filter parameters it used to obtain that cursor; a Catalog Provider <span class="bcp14">MAY</span> reject a request that combines a <code>cursor</code> with inconsistent filters.<a href="#section-3.2.2-2.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+</dl>
+<p id="section-3.2.2-3">When more services match than are returned in a response, the Catalog Provider includes a <code>next_cursor</code> member in the catalog object (<a href="#catalog-object" class="auto internal xref">Section 3.3.1</a>); its absence indicates no further services are available. A Catalog Provider <span class="bcp14">MAY</span> also indicate the next page with a Link header field <span>[<a href="#RFC8288" class="cite xref">RFC8288</a>]</span> using the relation type <code>next</code>. A Catalog Provider <span class="bcp14">MAY</span> paginate even when the client did not supply a <code>limit</code>.<a href="#section-3.2.2-3" class="pilcrow">¶</a></p>
+<p id="section-3.2.2-4">The Catalog Provider <span class="bcp14">MUST</span> order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor <span class="bcp14">MAY</span> expire. A request with an expired or otherwise invalid <code>cursor</code> <span class="bcp14">MUST</span> be rejected with an HTTP 400 (Bad Request) and the error code <code>invalid_request</code> (<a href="#error-response" class="auto internal xref">Section 3.8</a>); the client recovers by restarting from the first page.<a href="#section-3.2.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.2.2-5">The following example requests the next page using a cursor from a previous response:<a href="#section-3.2.2-5" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3.2.2-6">
+<pre>
+GET /.well-known/service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
+Host: catalog.example.com
+Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
+Accept: application/json
+</pre><a href="#section-3.2.2-6" class="pilcrow">¶</a>
+</div>
+</section>
 </div>
 </section>
 </div>
@@ -1487,7 +1522,7 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.1-2.9">next_cursor:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.1-2.10">
-              <p id="section-3.3.1-2.10.1"><span class="bcp14">OPTIONAL</span>. An opaque string. If present, more services are available than were returned; the client obtains the next page by repeating the request with the <code>cursor</code> query parameter set to this value (see <a href="#catalog-request" class="auto internal xref">Section 3.2</a>). If absent, no further services are available.<a href="#section-3.3.1-2.10.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.1-2.10.1"><span class="bcp14">OPTIONAL</span>. An opaque string. If present, more services are available than were returned; the client obtains the next page by repeating the request with the <code>cursor</code> query parameter set to this value (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>). If absent, no further services are available.<a href="#section-3.3.1-2.10.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -1945,7 +1980,7 @@ Cache-Control: private, max-age=60
             <p id="section-3.8-2.2.1">403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.<a href="#section-3.8-2.2.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-3.8-2.3">
-            <p id="section-3.8-2.3.1">400 (Bad Request): the request is otherwise malformed.<a href="#section-3.8-2.3.1" class="pilcrow">¶</a></p>
+            <p id="section-3.8-2.3.1">400 (Bad Request): the request is malformed, or includes an invalid or expired <code>cursor</code> (see <a href="#pagination" class="auto internal xref">Section 3.2.2</a>).<a href="#section-3.8-2.3.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-3.8-2.4">
             <p id="section-3.8-2.4.1">503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.<a href="#section-3.8-2.4.1" class="pilcrow">¶</a></p>
