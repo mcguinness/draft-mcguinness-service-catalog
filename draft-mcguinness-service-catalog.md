@@ -117,7 +117,7 @@ This specification defines the **Service Catalog Endpoint**: a single HTTP resou
 
 The design is deliberately general:
 
-* **Multiple service types.** A service may be a conventional HTTP API (`rest`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.
+* **Multiple service types.** A service may be a conventional HTTP API (`http`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.
 
 * **Two-layer authentication, OAuth not assumed.** Each connection method separates *credential acquisition* (its `type` -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none) from *credential presentation* (how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.
 
@@ -198,7 +198,7 @@ category:
 : A well-known service category value (see {{service-categories}}), such as `email` or `calendar`. Only services in the given category are returned. MAY be repeated (OR).
 
 type:
-: A service type value (see {{service-types}}), such as `rest` or `mcp`. Only services of the given type are returned. MAY be repeated (OR).
+: A service type value (see {{service-types}}), such as `http` or `mcp`. Only services of the given type are returned. MAY be repeated (OR).
 
 status:
 : A connection status value (see {{connection-object}}): `connected`, `available`, `consent_required`, or `unavailable`. Only services that have at least one connection method with the given status are returned. MAY be repeated (OR). For example, `status=connected&status=available` returns services the client can use without user interaction.
@@ -278,7 +278,7 @@ connections:
 : REQUIRED. A non-empty array of **connection objects** (see {{connection-object}}), each describing one way the client can obtain credentials to call the service. The Catalog Provider SHOULD order the array from most to least preferred.
 
 type:
-: OPTIONAL. The service type, as a value from the registry in {{service-types}}. If omitted, the type is `rest`.
+: OPTIONAL. The service type, as a value from the registry in {{service-types}}. If omitted, the type is `http`.
 
 description:
 : OPTIONAL. A human-readable description of the service.
@@ -293,7 +293,7 @@ links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
 
 base_uri:
-: OPTIONAL. The primary endpoint URL at which the service is hosted: for a `rest` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.
+: OPTIONAL. The primary endpoint URL at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.
 
 mcp:
 : OPTIONAL. Present only when `type` is `mcp`; see {{type-mcp}}.
@@ -370,7 +370,7 @@ Connection types define additional type-specific members, as described in {{conn
 
 The `type` member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry ({{iana-service-type}}). This document defines three values.
 
-### rest {#type-rest}
+### http {#type-http}
 
 A conventional HTTP API. The `base_uri` member is the base URL of the API. A machine-readable description (for example, an OpenAPI document) MAY be referenced with a `service-desc` link ({{link-object}}). This is the default type when `type` is omitted.
 
@@ -457,7 +457,7 @@ A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens
 
 ## Catalog Response Example {#response-example}
 
-The following is a non-normative example response showing four services: a REST service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), and an A2A agent referencing its Agent Card.
+The following is a non-normative example response showing four services: an HTTP service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), and an A2A agent referencing its Agent Card.
 
     HTTP/1.1 200 OK
     Content-Type: application/json
@@ -470,7 +470,7 @@ The following is a non-normative example response showing four services: a REST 
         {
           "id": "mail",
           "name": "Example Mail",
-          "type": "rest",
+          "type": "http",
           "categories": ["email"],
           "base_uri": "https://api.example.com/mail",
           "links": [
@@ -697,7 +697,7 @@ IANA is requested to establish the "Service Catalog Service Type" registry for v
 
 | Service Type | Description | Reference |
 | ------------ | ----------- | --------- |
-| `rest` | HTTP API | {{type-rest}} |
+| `http` | HTTP API | {{type-http}} |
 | `mcp` | Model Context Protocol server | {{type-mcp}} |
 | `a2a` | Agent2Agent agent | {{type-a2a}} |
 
