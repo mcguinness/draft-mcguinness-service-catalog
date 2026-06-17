@@ -29,6 +29,7 @@ normative:
   RFC3339:
   RFC6749:
   RFC6750:
+  RFC6838:
   RFC8259:
   RFC8288:
   RFC8414:
@@ -36,6 +37,7 @@ normative:
   RFC8707:
   RFC9111:
   RFC9396:
+  RFC9457:
   RFC9728:
 
 informative:
@@ -226,7 +228,7 @@ cursor:
 
 When more services match than are returned in a response, the Catalog Provider includes a `next_cursor` member in the catalog object ({{catalog-object}}); its absence indicates no further services are available. A Catalog Provider MAY also indicate the next page with a Link header field {{RFC8288}} using the relation type `next`. A Catalog Provider MAY paginate even when the client did not supply a `limit`.
 
-The Catalog Provider MUST order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor MAY expire. A request with an expired or otherwise invalid `cursor` MUST be rejected with an HTTP 400 (Bad Request) and the error code `invalid_request` ({{error-response}}); the client recovers by restarting from the first page.
+The Catalog Provider MUST order services consistently across the pages of a single pagination sequence so that, absent concurrent changes, each matching service appears on exactly one page. A cursor MAY expire. A request with an expired or otherwise invalid `cursor` MUST be rejected with an HTTP 400 (Bad Request) ({{error-response}}); the client recovers by restarting from the first page.
 
 The following example requests the next page using a cursor from a previous response:
 
@@ -237,7 +239,7 @@ The following example requests the next page using a cursor from a previous resp
 
 ## Catalog Response {#catalog-response}
 
-If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON {{RFC8259}} object, the **catalog object**. The `Content-Type` of the response MUST be `application/json`.
+If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON {{RFC8259}} object, the **catalog object**. The `Content-Type` of the response MUST be `application/service-catalog+json` ({{iana-media-type}}); the media type suffix `+json` allows generic JSON tooling to process it. A JSON Schema for the catalog object is published with this specification, and the catalog object MAY carry a `$schema` member referencing it, so that clients can validate responses and generate types.
 
 The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value.
 
@@ -246,6 +248,9 @@ The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}
 ### Catalog Object {#catalog-object}
 
 The catalog object contains the following members:
+
+$schema:
+: OPTIONAL. A URI referencing the JSON Schema that describes this catalog object. Its value also identifies the version of the catalog format in use, allowing the format to evolve.
 
 services:
 : REQUIRED. An array of **service objects** (see {{service-object}}), each describing a service available to the user. If the user has access to no services, this member is an empty array.
@@ -331,12 +336,15 @@ type:
 : REQUIRED. The credential acquisition method: a string drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, and `none`.
 
 present:
-: OPTIONAL. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}} -- for example `{"type": "http", "scheme": "bearer"}` for a bearer token, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}` for an API key, or `{"type": "mutualTLS"}` for a client certificate. When `present` is omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`), the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes. The catalog SHOULD NOT inline a `present` value that merely restates the security schemes already published in the service's descriptor (an OpenAPI {{OPENAPI}} document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}).
+: OPTIONAL. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}} -- for example `{"type": "http", "scheme": "bearer"}` for a bearer token, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}` for an API key, or `{"type": "mutualTLS"}` for a client certificate. When `present` is omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`), the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes. The catalog SHOULD NOT inline a `present` value that merely restates the security schemes already published in the service's descriptor (an OpenAPI {{OPENAPI}} document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}). For OAuth-based acquisition types the presentation is normally an HTTP bearer token, so `present` is usually omitted for them; it is primarily useful for non-OAuth presentation. Because its value is a verbatim OpenAPI Security Scheme Object, its member names follow OpenAPI conventions (for example, `mutualTLS`) rather than the snake_case used elsewhere in this document.
+
+security_scheme:
+: OPTIONAL. When the service's referenced descriptor defines named security schemes (the keys of an OpenAPI `securitySchemes` object, or the equivalent in an A2A Agent Card), the name of the scheme that this connection corresponds to. This lets a client map the connection to a specific scheme in the descriptor rather than inferring it. Presentation is resolved in this order: an explicit `present`; otherwise the named `security_scheme` resolved against the descriptor; otherwise, for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}.
 
 status:
 : OPTIONAL. The per-user state of this connection method, as one of the following string values. If omitted, the client SHOULD treat the status as `available`.
 
-    * `connected`: A valid credential already exists for the user; the client may be able to call the service without obtaining a new credential, or can refresh without user interaction.
+    * `connected`: A valid credential already exists for the user; the client may be able to call the service without obtaining a new credential, or can refresh without user interaction. This is a point-in-time indication and MAY be stale (for example, the credential may have since expired or been revoked); a client MUST still handle an authentication failure at call time.
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
     * `consent_required`: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).
     * `unavailable`: The method is described for completeness but cannot currently be used by this user.
@@ -353,16 +361,18 @@ resource:
 : OPTIONAL. The resource indicator {{RFC8707}} the client includes when requesting a token for this connection, as a canonical URI per {{Section 2 of RFC8707}}. This identifies the protected resource and corresponds to the resource described by a Protected Resource Metadata document {{RFC9728}}, which MAY be referenced by a `describedby` link ({{link-object}}).
 
 scopes:
-: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} to request for this connection.
+: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} available to this connection. This is a coarse, planning-time hint and an upper bound: it lists scopes the user and client may request, not what any particular operation requires. Operation-level scope requirements come from the service's descriptor (for example, an OpenAPI {{OPENAPI}} document) and are enforced by the authorization server. A client SHOULD request the least privilege its task requires rather than the full set.
 
 authorization_details_types:
-: OPTIONAL. An array of OAuth 2.0 Rich Authorization Requests {{RFC9396}} `authorization_details` type identifiers (strings) that this connection accepts for this user, enabling fine-grained, intent-scoped access requests independently of `scopes`. This is the per-service, per-user counterpart to the server-wide `authorization_details_types_supported` metadata of {{RFC9396}}: it tells the client which types are usable here, while the schema, documentation, and examples for each type are obtained from the authorization server's Authorization Details Types Metadata {{RAR-METADATA}} (discovered via this connection's `authorization_server`) rather than restated in the catalog.
+: OPTIONAL. An array of OAuth 2.0 Rich Authorization Requests {{RFC9396}} `authorization_details` type identifiers (strings) that this connection accepts for this user, enabling fine-grained, intent-scoped access requests independently of `scopes`. Like `scopes`, this is a planning-time hint and an upper bound, not a per-operation requirement. It is the per-service, per-user counterpart to the server-wide `authorization_details_types_supported` metadata of {{RFC9396}}: it tells the client which types are usable here, while the schema, documentation, and examples for each type are obtained from the authorization server's Authorization Details Types Metadata {{RAR-METADATA}} (discovered via this connection's `authorization_server`) rather than restated in the catalog.
 
 client_id:
 : OPTIONAL. A static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
 
 client_registration:
 : OPTIONAL. How the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
+
+For a service protected by OAuth, the authoritative source of these values is the service's Protected Resource Metadata {{RFC9728}} and the authorization server metadata {{RFC8414}}; the values carried in a connection object are a convenience that lets a client act without an additional round trip. A client MAY rely on them directly but SHOULD be prepared to reconcile them with the authoritative metadata (for example, after endpoint or key rotation). In particular, for `mcp` services -- and any service that publishes Protected Resource Metadata -- a client SHOULD treat the standard discovery flow ({{RFC9728}} then {{RFC8414}}) as authoritative and the connection values as a starting point (see {{type-mcp}}). The catalog's contribution is the user-scoped enumeration of which services and connection methods exist, not a second source of truth for OAuth endpoints.
 
 Connection types define additional type-specific members, as described in {{connection-types}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
 
@@ -386,7 +396,7 @@ transport:
 server_card_uri:
 : OPTIONAL. The URL of the server's MCP Server Card {{MCP-SERVER-CARD}}.
 
-Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `mcp` service typically offers OAuth-based connection methods (for example, `authorization_code` or `token_exchange`); service type and connection type are independent.
+Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `mcp` service typically offers OAuth-based connection methods (for example, `authorization_code` or `token_exchange`); service type and connection type are independent. The MCP authorization flow remains authoritative: a client discovers and validates the server's authorization server through the server's Protected Resource Metadata {{RFC9728}}, as described in {{MCP-AUTHORIZATION}}, and uses the catalog's connection values only as a starting point ({{connection-object}}). The location and format of the MCP Server Card are defined by the MCP Server Card specification {{MCP-SERVER-CARD}}; this document does not define them and a Catalog Provider references the card by URL.
 
 ### a2a {#type-a2a}
 
@@ -460,10 +470,11 @@ A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens
 The following is a non-normative example response showing four services: an HTTP service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), and an A2A agent referencing its Agent Card.
 
     HTTP/1.1 200 OK
-    Content-Type: application/json
+    Content-Type: application/service-catalog+json
     Cache-Control: private, max-age=60
 
     {
+      "$schema": "https://example.com/schemas/service-catalog.json",
       "name": "Example Workspace",
       "updated": "2026-06-16T18:00:00Z",
       "services": [
@@ -508,7 +519,7 @@ The following is a non-normative example response showing four services: an HTTP
           "mcp": {"transport": "streamable-http"},
           "links": [
             {"rel": "mcp-server-card",
-             "href": "https://mcp.example.com/.well-known/mcp.json"}
+             "href": "https://mcp.example.com/server-card.json"}
           ],
           "connections": [
             {
@@ -562,9 +573,9 @@ The following is a non-normative example response showing four services: an HTTP
 
 ## Error Response {#error-response}
 
-If the request fails, the Catalog Provider returns an HTTP error response whose body, when present, is a JSON object using the error format of {{Section 5.2 of RFC6749}} (`error` and OPTIONAL `error_description`). The HTTP status code is set as follows:
+If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object {{RFC9457}} with the media type `application/problem+json`. The HTTP status code is set as follows:
 
-* 401 (Unauthorized): authentication is required and was missing or invalid.
+* 401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider MUST include a `WWW-Authenticate` header field {{RFC6750}} indicating how to authenticate.
 * 403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.
 * 400 (Bad Request): the request is malformed, or includes an invalid or expired `cursor` (see {{pagination}}).
 * 503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.
@@ -572,12 +583,13 @@ If the request fails, the Catalog Provider returns an HTTP error response whose 
 The following is an example error response:
 
     HTTP/1.1 401 Unauthorized
-    Content-Type: application/json
+    Content-Type: application/problem+json
     WWW-Authenticate: Bearer
 
     {
-      "error": "invalid_token",
-      "error_description": "The access token is missing or expired"
+      "type": "https://example.com/probs/invalid-token",
+      "title": "The access token is missing or expired",
+      "status": 401
     }
 
 # Connecting to a Service
@@ -624,7 +636,9 @@ Agent and tool descriptors -- A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SE
 
 APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `name`, `description`, `base_uri` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.
 
-# Security Considerations
+Several of the above are evolving specifications: A2A {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and {{RAR-METADATA}} are referenced here as directional rather than stable dependencies. The catalog's core function -- per-user enumeration of services and their connection methods -- does not depend on any of them; a Catalog Provider and client can interoperate using only OAuth 2.0 metadata ({{RFC9728}}, {{RFC8414}}) and human-readable links, and treat references to those evolving formats as optional enhancements.
+
+# Security Considerations {#security-considerations}
 
 ## Authentication and Transport
 
@@ -678,6 +692,32 @@ Metadata Description: URL of the per-user Service Catalog Endpoint associated wi
 Change Controller: IETF
 
 Specification Document(s): [[ this document ]]
+
+## Media Type {#iana-media-type}
+
+IANA is requested to register the following media type in the "Media Types" registry, following the procedure of {{RFC6838}}.
+
+Type name: application
+
+Subtype name: service-catalog+json
+
+Required parameters: N/A
+
+Optional parameters: N/A
+
+Encoding considerations: binary; the content is a JSON {{RFC8259}} value encoded in UTF-8.
+
+Security considerations: See {{security-considerations}} of this document.
+
+Interoperability considerations: N/A
+
+Published specification: [[ this document ]]
+
+Applications that use this media type: OAuth 2.0 clients and autonomous agents that retrieve a per-user service catalog.
+
+Fragment identifier considerations: Follows the `+json` structured syntax suffix semantics.
+
+Change controller: IETF
 
 ## Well-Known URI {#iana-well-known}
 
