@@ -1177,7 +1177,7 @@ svg {
                 <p id="section-toc.1-1.3.2.4.1"><a href="#section-3.4" class="auto internal xref">3.4</a>.  <a href="#name-service-types" class="internal xref">Service Types</a></p>
 <ul class="compact toc ulBare ulEmpty">
 <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.4.2.1">
-                    <p id="section-toc.1-1.3.2.4.2.1.1"><a href="#section-3.4.1" class="auto internal xref">3.4.1</a>.  <a href="#name-rest" class="internal xref">rest</a></p>
+                    <p id="section-toc.1-1.3.2.4.2.1.1"><a href="#section-3.4.1" class="auto internal xref">3.4.1</a>.  <a href="#name-http" class="internal xref">http</a></p>
 </li>
                   <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.4.2.2">
                     <p id="section-toc.1-1.3.2.4.2.2.1"><a href="#section-3.4.2" class="auto internal xref">3.4.2</a>.  <a href="#name-mcp" class="internal xref">mcp</a></p>
@@ -1314,7 +1314,7 @@ svg {
 <p id="section-1-4">The design is deliberately general:<a href="#section-1-4" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-1-5.1">
-          <p id="section-1-5.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>rest</code>), an MCP server (<code>mcp</code>), or an A2A agent (<code>a2a</code>). MCP servers and A2A agents are first-class: such a service references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> or A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.<a href="#section-1-5.1.1" class="pilcrow">¶</a></p>
+          <p id="section-1-5.1.1"><strong>Multiple service types.</strong> A service may be a conventional HTTP API (<code>http</code>), an MCP server (<code>mcp</code>), or an A2A agent (<code>a2a</code>). MCP servers and A2A agents are first-class: such a service references its MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> or A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span> so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.<a href="#section-1-5.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-1-5.2">
           <p id="section-1-5.2.1"><strong>Two-layer authentication, OAuth not assumed.</strong> Each connection method separates <em>credential acquisition</em> (its <code>type</code> -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant <span>[<a href="#I-D.oauth-identity-assertion-authz-grant" class="cite xref">I-D.oauth-identity-assertion-authz-grant</a>]</span>, a pre-provisioned credential, or none) from <em>credential presentation</em> (how the credential is presented when calling the service, expressed as an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.<a href="#section-1-5.2.1" class="pilcrow">¶</a></p>
@@ -1439,7 +1439,7 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.2.1-2.3">type:</dt>
             <dd style="margin-left: 1.5em" id="section-3.2.1-2.4">
-              <p id="section-3.2.1-2.4.1">A service type value (see <a href="#service-types" class="auto internal xref">Section 3.4</a>), such as <code>rest</code> or <code>mcp</code>. Only services of the given type are returned. <span class="bcp14">MAY</span> be repeated (OR).<a href="#section-3.2.1-2.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.2.1-2.4.1">A service type value (see <a href="#service-types" class="auto internal xref">Section 3.4</a>), such as <code>http</code> or <code>mcp</code>. Only services of the given type are returned. <span class="bcp14">MAY</span> be repeated (OR).<a href="#section-3.2.1-2.4.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.2.1-2.5">status:</dt>
@@ -1567,7 +1567,7 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.7">type:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.8">
-              <p id="section-3.3.2-2.8.1"><span class="bcp14">OPTIONAL</span>. The service type, as a value from the registry in <a href="#service-types" class="auto internal xref">Section 3.4</a>. If omitted, the type is <code>rest</code>.<a href="#section-3.3.2-2.8.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.2-2.8.1"><span class="bcp14">OPTIONAL</span>. The service type, as a value from the registry in <a href="#service-types" class="auto internal xref">Section 3.4</a>. If omitted, the type is <code>http</code>.<a href="#section-3.3.2-2.8.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.9">description:</dt>
@@ -1592,7 +1592,7 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.17">base_uri:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.18">
-              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for a <code>rest</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for an <code>http</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.19">mcp:</dt>
@@ -1727,10 +1727,10 @@ Accept: application/json
 <a href="#section-3.4" class="section-number selfRef">3.4. </a><a href="#name-service-types" class="section-name selfRef">Service Types</a>
         </h3>
 <p id="section-3.4-1">The <code>type</code> member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry (<a href="#iana-service-type" class="auto internal xref">Section 9.3</a>). This document defines three values.<a href="#section-3.4-1" class="pilcrow">¶</a></p>
-<div id="type-rest">
+<div id="type-http">
 <section id="section-3.4.1">
-          <h4 id="name-rest">
-<a href="#section-3.4.1" class="section-number selfRef">3.4.1. </a><a href="#name-rest" class="section-name selfRef">rest</a>
+          <h4 id="name-http">
+<a href="#section-3.4.1" class="section-number selfRef">3.4.1. </a><a href="#name-http" class="section-name selfRef">http</a>
           </h4>
 <p id="section-3.4.1-1">A conventional HTTP API. The <code>base_uri</code> member is the base URL of the API. A machine-readable description (for example, an OpenAPI document) <span class="bcp14">MAY</span> be referenced with a <code>service-desc</code> link (<a href="#link-object" class="auto internal xref">Section 3.3.3</a>). This is the default type when <code>type</code> is omitted.<a href="#section-3.4.1-1" class="pilcrow">¶</a></p>
 </section>
@@ -1882,7 +1882,7 @@ Accept: application/json
         <h3 id="name-catalog-response-example">
 <a href="#section-3.7" class="section-number selfRef">3.7. </a><a href="#name-catalog-response-example" class="section-name selfRef">Catalog Response Example</a>
         </h3>
-<p id="section-3.7-1">The following is a non-normative example response showing four services: a REST service in the <code>email</code> category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the <code>present</code> member), and an A2A agent referencing its Agent Card.<a href="#section-3.7-1" class="pilcrow">¶</a></p>
+<p id="section-3.7-1">The following is a non-normative example response showing four services: an HTTP service in the <code>email</code> category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the <code>present</code> member), and an A2A agent referencing its Agent Card.<a href="#section-3.7-1" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-3.7-2">
 <pre>
 HTTP/1.1 200 OK
@@ -1896,7 +1896,7 @@ Cache-Control: private, max-age=60
     {
       "id": "mail",
       "name": "Example Mail",
-      "type": "rest",
+      "type": "http",
       "categories": ["email"],
       "base_uri": "https://api.example.com/mail",
       "links": [
@@ -2230,11 +2230,11 @@ WWW-Authenticate: Bearer
           <tbody>
             <tr>
               <td class="text-left" rowspan="1" colspan="1">
-                <code>rest</code>
+                <code>http</code>
 </td>
               <td class="text-left" rowspan="1" colspan="1">HTTP API</td>
               <td class="text-left" rowspan="1" colspan="1">
-                <a href="#type-rest" class="auto internal xref">Section 3.4.1</a>
+                <a href="#type-http" class="auto internal xref">Section 3.4.1</a>
 </td>
             </tr>
             <tr>

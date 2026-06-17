@@ -81,7 +81,7 @@ Table of Contents
        3.3.3.  Link Object
        3.3.4.  Connection Object
      3.4.  Service Types
-       3.4.1.  rest
+       3.4.1.  http
        3.4.2.  mcp
        3.4.3.  a2a
      3.5.  Service Categories
@@ -158,7 +158,7 @@ Table of Contents
    The design is deliberately general:
 
    *  *Multiple service types.* A service may be a conventional HTTP API
-      (rest), an MCP server (mcp), or an A2A agent (a2a).  MCP servers
+      (http), an MCP server (mcp), or an A2A agent (a2a).  MCP servers
       and A2A agents are first-class: such a service references its MCP
       Server Card [MCP-SERVER-CARD] or A2A Agent Card [A2A] so a client
       can learn the service's capabilities without connecting.  Service
@@ -340,7 +340,7 @@ Table of Contents
       such as email or calendar.  Only services in the given category
       are returned.  MAY be repeated (OR).
 
-   type:  A service type value (see Section 3.4), such as rest or mcp.
+   type:  A service type value (see Section 3.4), such as http or mcp.
       Only services of the given type are returned.  MAY be repeated
       (OR).
 
@@ -476,7 +476,7 @@ Table of Contents
       order the array from most to least preferred.
 
    type:  OPTIONAL.  The service type, as a value from the registry in
-      Section 3.4.  If omitted, the type is rest.
+      Section 3.4.  If omitted, the type is http.
 
    description:  OPTIONAL.  A human-readable description of the service.
 
@@ -492,10 +492,10 @@ Table of Contents
       the MCP Server Card, using link relation types [RFC8288].
 
    base_uri:  OPTIONAL.  The primary endpoint URL at which the service
-      is hosted: for a rest service, the base URL of its API; for an mcp
-      service, the MCP server endpoint.  This is the network location of
-      the service and is independent of how the client authenticates to
-      it.
+      is hosted: for an http service, the base URL of its API; for an
+      mcp service, the MCP server endpoint.  This is the network
+      location of the service and is independent of how the client
+      authenticates to it.
 
    mcp:  OPTIONAL.  Present only when type is mcp; see Section 3.4.2.
 
@@ -658,7 +658,7 @@ Table of Contents
    using a value from the "Service Catalog Service Type" registry
    (Section 9.3).  This document defines three values.
 
-3.4.1.  rest
+3.4.1.  http
 
    A conventional HTTP API.  The base_uri member is the base URL of the
    API.  A machine-readable description (for example, an OpenAPI
@@ -812,7 +812,7 @@ Table of Contents
 3.7.  Catalog Response Example
 
    The following is a non-normative example response showing four
-   services: a REST service in the email category offering both token
+   services: an HTTP service in the email category offering both token
    exchange and user consent, an MCP server referencing its Server Card,
    a service the user is already connected to via a pre-provisioned API
    key (note the present member), and an A2A agent referencing its Agent
@@ -829,7 +829,7 @@ Table of Contents
        {
          "id": "mail",
          "name": "Example Mail",
-         "type": "rest",
+         "type": "http",
          "categories": ["email"],
          "base_uri": "https://api.example.com/mail",
          "links": [
@@ -1224,7 +1224,7 @@ Table of Contents
      +==============+===============================+===============+
      | Service Type | Description                   | Reference     |
      +==============+===============================+===============+
-     | rest         | HTTP API                      | Section 3.4.1 |
+     | http         | HTTP API                      | Section 3.4.1 |
      +--------------+-------------------------------+---------------+
      | mcp          | Model Context Protocol server | Section 3.4.2 |
      +--------------+-------------------------------+---------------+
