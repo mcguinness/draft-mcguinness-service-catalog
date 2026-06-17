@@ -103,7 +103,7 @@ informative:
 
 --- abstract
 
-This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API or a Model Context Protocol (MCP) server. Connection methods are not limited to OAuth 2.0; OAuth 2.0 Token Exchange, the authorization code grant, API keys, mutual TLS, and other schemes are all expressible. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token.
+This specification defines the Service Catalog Endpoint, a per-user, lightweight HTTP API that lets a client (such as an autonomous agent) discover, in a single request, the set of services a user is permitted to access, together with the metadata required to connect to each service and obtain the credentials needed to call it. After the user signs in to their identity provider, the client discovers the endpoint from the provider's metadata and retrieves the catalog scoped to that user. The catalog unifies human- and machine-readable service description (in the style of APIs.json), well-known service metadata, and one or more connection methods per service. A service may be a conventional HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent. Each connection method separates how the client obtains a credential (for example, OAuth 2.0 Token Exchange or the authorization code grant) from how it presents that credential to the service (for example, a bearer token, an API key, or mutual TLS), reusing OpenAPI security scheme definitions for the latter; OAuth 2.0 is not assumed. Services are categorized so that an agent can find, for example, an email or calendar service by capability, and carry typed links (documentation, sign-up, terms, and others) using well-known link relation types. An agent can use the catalog to plan intent-scoped access before requesting any token.
 
 --- middle
 
@@ -117,9 +117,9 @@ This specification defines the **Service Catalog Endpoint**: a single HTTP resou
 
 The design is deliberately general:
 
-* **Multiple service types.** A service may be a conventional HTTP API (`rest`) or an MCP server (`mcp`). MCP servers are first-class: a service of type `mcp` references its MCP Server Card {{MCP-SERVER-CARD}} so a client can learn the server's capabilities without connecting. Service types are extensible through an IANA registry.
+* **Multiple service types.** A service may be a conventional HTTP API (`rest`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting. Service types are extensible through an IANA registry.
 
-* **Multiple authentication schemes.** OAuth 2.0 is not assumed to be the only scheme. Connection methods describe OAuth 2.0 mechanisms (token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}) as well as non-OAuth schemes (API keys, mutual TLS, public access, and out-of-band credentials), and are extensible through an IANA registry.
+* **Two-layer authentication, OAuth not assumed.** Each connection method separates *credential acquisition* (its `type` -- OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, or none) from *credential presentation* (how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme such as a bearer token, API key, or mutual TLS). Acquisition types are extensible through an IANA registry; presentation reuses OpenAPI security schemes.
 
 * **Capability-based discovery.** Each service may carry well-known **categories** (such as `email` or `calendar`), so an agent can find a service by what it does rather than by name.
 
@@ -155,7 +155,7 @@ Service:
 : Something a client can call on behalf of the user, such as an HTTP API or an MCP server. A service has a service type (see {{service-types}}).
 
 Connection Method:
-: A description of one way a client can obtain the credentials needed to call a service. Each connection method has a `type` drawn from the registry defined in {{connection-type-registry}}. OAuth 2.0 token issuance is one kind of connection method; others use static or out-of-band credentials.
+: A description of one way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `type` (how the credential is obtained; see {{connection-type-registry}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition type; others use a pre-provisioned credential or none.
 
 All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC8259}} unless otherwise stated.
 
@@ -298,6 +298,9 @@ base_uri:
 mcp:
 : OPTIONAL. Present only when `type` is `mcp`; see {{type-mcp}}.
 
+a2a:
+: OPTIONAL. Present only when `type` is `a2a`; see {{type-a2a}}.
+
 The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object ({{connection-object}}) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.
 
 Extensions and service types MAY define additional members of the service object. Clients MUST ignore members they do not understand.
@@ -307,7 +310,7 @@ Extensions and service types MAY define additional members of the service object
 A link object points to a resource related to a service. It is modeled on the Web Linking framework {{RFC8288}} and contains the following members:
 
 rel:
-: REQUIRED. A link relation type {{RFC8288}}. The value is either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include `service` (the service's primary endpoint or home), `service-desc` (a machine-readable API description such as an OpenAPI document), `service-doc` (human-readable documentation), `terms-of-service`, `privacy-policy`, `help`, `status` (a service status page), `icon`, `describedby` (for example, a Protected Resource Metadata document {{RFC9728}}), `sign-up` (where a user can sign up for the service), and `mcp-server-card` (the service's MCP Server Card {{MCP-SERVER-CARD}}). The relation types `sign-up` and `mcp-server-card` are registered by this document (see {{iana-link-relations}}).
+: REQUIRED. A link relation type {{RFC8288}}. The value is either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include `service` (the service's primary endpoint or home), `service-desc` (a machine-readable API description such as an OpenAPI document), `service-doc` (human-readable documentation), `terms-of-service`, `privacy-policy`, `help`, `status` (a service status page), `icon`, `describedby` (for example, a Protected Resource Metadata document {{RFC9728}}), `sign-up` (where a user can sign up for the service), `mcp-server-card` (the service's MCP Server Card {{MCP-SERVER-CARD}}), and `agent-card` (the service's A2A Agent Card {{A2A}}). The relation types `sign-up`, `mcp-server-card`, and `agent-card` are registered by this document (see {{iana-link-relations}}).
 
 href:
 : REQUIRED. The target URL of the link.
@@ -320,12 +323,15 @@ title:
 
 ### Connection Object {#connection-object}
 
-A connection object describes one connection method for a service: one way the client can obtain the credentials needed to call the service. OAuth 2.0 token issuance is one kind of connection method; others use static or out-of-band credentials. A connection object MUST carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.
+A connection object describes one connection method for a service, separating two layers: how the client *acquires* a credential (its `type`) and how it *presents* that credential when calling the service (its `present` member, or a security scheme referenced from the service's descriptor). A connection object MUST carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.
 
 A connection object contains the following members:
 
 type:
-: REQUIRED. A string identifying the connection method, drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `api_key`, `mtls`, `none`, and `pre_authorized`.
+: REQUIRED. The credential acquisition method: a string drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, and `none`.
+
+present:
+: OPTIONAL. How the client presents its credential when calling the service (the service-authentication layer, as distinct from the acquisition `type`). Its value is an OpenAPI Security Scheme Object {{OPENAPI}} -- the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}} -- for example `{"type": "http", "scheme": "bearer"}` for a bearer token, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}` for an API key, or `{"type": "mutualTLS"}` for a client certificate. When `present` is omitted: for acquisition types that yield an access token (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`), the credential is presented as an HTTP bearer token {{RFC6750}}; otherwise the client determines presentation from the service's referenced security schemes. The catalog SHOULD NOT inline a `present` value that merely restates the security schemes already published in the service's descriptor (an OpenAPI {{OPENAPI}} document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}).
 
 status:
 : OPTIONAL. The per-user state of this connection method, as one of the following string values. If omitted, the client SHOULD treat the status as `available`.
@@ -362,7 +368,7 @@ Connection types define additional type-specific members, as described in {{conn
 
 ## Service Types {#service-types}
 
-The `type` member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry ({{iana-service-type}}). This document defines two values.
+The `type` member of a service object identifies the kind of service, using a value from the "Service Catalog Service Type" registry ({{iana-service-type}}). This document defines three values.
 
 ### rest {#type-rest}
 
@@ -382,13 +388,27 @@ server_card_uri:
 
 Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `mcp` service typically offers OAuth-based connection methods (for example, `authorization_code` or `token_exchange`); service type and connection type are independent.
 
+### a2a {#type-a2a}
+
+An Agent2Agent (A2A) agent {{A2A}}. The `base_uri` member is the A2A agent endpoint. A service of type `a2a` SHOULD reference the agent's A2A Agent Card, either with an `agent-card` link ({{link-object}}) or with the `agent_card_uri` member below, so that a client can learn the agent's skills and capabilities without connecting.
+
+A service of type `a2a` MAY include an `a2a` member, a JSON object with the following members:
+
+transport:
+: OPTIONAL. The A2A transport the endpoint uses (for example, `JSONRPC`).
+
+agent_card_uri:
+: OPTIONAL. The URL of the agent's A2A Agent Card (typically at `/.well-known/agent-card.json`).
+
+As with `mcp`, service type and connection type are independent; an `a2a` agent describes how callers authenticate to it in its Agent Card, which the catalog references rather than restates.
+
 ## Service Categories {#service-categories}
 
 The `categories` member of a service object, and the `category` query parameter ({{catalog-request}}), use well-known category values from the "Service Catalog Service Category" registry ({{iana-category}}) to describe what a service does. This document seeds the registry with the values `email`, `calendar`, `contacts`, `files`, `chat`, `tasks`, `crm`, and `ticketing`. The registry is extensible; an agent can rely on these values to find a service by capability (for example, "an email service") rather than by name.
 
 ## Connection Types {#connection-types}
 
-This section defines the initial connection types. All reuse the common connection object members from {{connection-object}}; the members below are type specific.
+This section defines the initial credential acquisition types -- the values of a connection's `type`. How the resulting credential is presented to the service is a separate layer, given by the connection's `present` member ({{connection-object}}). All reuse the common connection object members from {{connection-object}}; the members below are type specific.
 
 ### token_exchange {#type-token-exchange}
 
@@ -425,40 +445,19 @@ audience:
 tenant:
 : OPTIONAL. A machine-readable identifier for the tenant of a multi-tenant service, with the same descriptive semantics as in {{type-token-exchange}}.
 
-### api_key {#type-api-key}
-
-The client authenticates to the service with an API key it possesses out of band. The catalog describes how the key is presented but MUST NOT include the key itself.
-
-Type-specific members:
-
-in:
-: OPTIONAL. Where the key is presented: `header` or `query`. Defaults to `header`.
-
-name:
-: OPTIONAL. The name of the header or query parameter that carries the key.
-
-### mtls {#type-mtls}
-
-The client authenticates to the service using mutual TLS with a client certificate it possesses out of band. This type defines no additional members; certificate provisioning is out of scope. A service MAY provide a `sign-up` or `help` link ({{link-object}}) describing enrollment.
-
 ### none {#type-none}
 
 The service requires no client authentication (it is public). This type defines no additional members and typically has `status` of `available`.
 
 ### pre_authorized {#type-pre-authorized}
 
-The service is reachable using a credential the client already possesses out of band (for example, a long-lived token provisioned to the client). The catalog indicates that such a method exists but MUST NOT include the credential. This type typically has `status` of `connected`.
-
-Type-specific members:
-
-credential_type:
-: OPTIONAL. A short string describing the kind of credential the client presents (for example, `bearer_token`).
+The credential is one the client already possesses out of band (for example, a long-lived token, an API key, or a client certificate provisioned to the client). The catalog indicates that such a method exists but MUST NOT include the credential. How the credential is presented is given by the connection's `present` member ({{connection-object}}). This type typically has `status` of `connected`.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
 ## Catalog Response Example {#response-example}
 
-The following is a non-normative example response showing three services: a REST service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, and a service the user is already connected to via an out-of-band credential.
+The following is a non-normative example response showing four services: a REST service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), and an A2A agent referencing its Agent Card.
 
     HTTP/1.1 200 OK
     Content-Type: application/json
@@ -527,8 +526,35 @@ The following is a non-normative example response showing three services: a REST
           "categories": ["calendar"],
           "base_uri": "https://api.calendar.example",
           "connections": [
-            {"type": "pre_authorized", "status": "connected",
-             "credential_type": "bearer_token"}
+            {
+              "type": "pre_authorized",
+              "status": "connected",
+              "present": {
+                "type": "apiKey", "in": "header", "name": "X-API-Key"
+              }
+            }
+          ]
+        },
+        {
+          "id": "scheduler",
+          "name": "Scheduler Agent",
+          "type": "a2a",
+          "categories": ["calendar"],
+          "base_uri": "https://agent.example/a2a",
+          "a2a": {"transport": "JSONRPC"},
+          "links": [
+            {"rel": "agent-card",
+             "href":
+               "https://agent.example/.well-known/agent-card.json"}
+          ],
+          "connections": [
+            {
+              "type": "authorization_code",
+              "status": "consent_required",
+              "authorization_server": "https://as.example.com",
+              "resource": "https://agent.example/a2a",
+              "client_registration": "dynamic"
+            }
           ]
         }
       ]
@@ -562,7 +588,7 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
 3. For OAuth-based connection types, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}; otherwise proceed without a client identifier if `client_registration` is `none`.
 4. Obtain the credential according to the connection `type` (see {{connection-types}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth-based types.
-5. Call the service, presenting the credential as required (for example, as a bearer token {{RFC6750}}, an API key, or a client certificate). The client MAY consult a `describedby` link {{RFC9728}} for token presentation requirements.
+5. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card) -- for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
 This specification does not define any new credential issuance mechanism. Each connection type parameterizes an existing mechanism.
 
@@ -673,6 +699,7 @@ IANA is requested to establish the "Service Catalog Service Type" registry for v
 | ------------ | ----------- | --------- |
 | `rest` | HTTP API | {{type-rest}} |
 | `mcp` | Model Context Protocol server | {{type-mcp}} |
+| `a2a` | Agent2Agent agent | {{type-a2a}} |
 
 ## Service Catalog Service Category Registry {#iana-category}
 
@@ -699,10 +726,8 @@ IANA is requested to establish the "Service Catalog Connection Type" registry fo
 | `authorization_code` | Authorization code grant with PKCE | {{type-authorization-code}} |
 | `client_credentials` | Client credentials grant | {{type-client-credentials}} |
 | `id_jag` | Identity Assertion Authorization Grant | {{type-id-jag}} |
-| `api_key` | API key presented out of band | {{type-api-key}} |
-| `mtls` | Mutual TLS client certificate | {{type-mtls}} |
-| `none` | No client authentication (public) | {{type-none}} |
 | `pre_authorized` | Pre-provisioned out-of-band credential | {{type-pre-authorized}} |
+| `none` | No credential required (public) | {{type-none}} |
 
 ## Link Relation Types {#iana-link-relations}
 
@@ -717,6 +742,12 @@ Reference: [[ this document ]]
 Relation Name: `mcp-server-card`
 
 Description: Refers to the Model Context Protocol Server Card for the linked service.
+
+Reference: [[ this document ]]
+
+Relation Name: `agent-card`
+
+Description: Refers to the Agent2Agent (A2A) Agent Card for the linked service.
 
 Reference: [[ this document ]]
 
