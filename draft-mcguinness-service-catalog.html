@@ -1578,31 +1578,17 @@ Accept: application/json
             <dd class="break"></dd>
 <dt id="section-3.3.2-2.17">base_uri:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.18">
-              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for a <code>rest</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.2-2.18.1"><span class="bcp14">OPTIONAL</span>. The primary endpoint URL at which the service is hosted: for a <code>rest</code> service, the base URL of its API; for an <code>mcp</code> service, the MCP server endpoint. This is the network location of the service and is independent of how the client authenticates to it.<a href="#section-3.3.2-2.18.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
-<dt id="section-3.3.2-2.19">resource:</dt>
+<dt id="section-3.3.2-2.19">mcp:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.2-2.20">
-              <p id="section-3.3.2-2.20.1"><span class="bcp14">OPTIONAL</span>. The resource identifier of the service, as a canonical URI per <span><a href="https://rfc-editor.org/rfc/rfc8707#section-2" class="relref">Section 2</a> of [<a href="#RFC8707" class="cite xref">RFC8707</a>]</span>. When present, this value is the resource for which connection methods obtain tokens, and it identifies the protected resource described by the protected resource metadata link (see <a href="#link-object" class="auto internal xref">Section 3.3.3</a>).<a href="#section-3.3.2-2.20.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.3.2-2.21">authorization_servers:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.3.2-2.22">
-              <p id="section-3.3.2-2.22.1"><span class="bcp14">OPTIONAL</span>. An array of authorization server issuer identifiers <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> that can issue tokens for the service. Individual connection objects identify the specific authorization server to use.<a href="#section-3.3.2-2.22.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.3.2-2.23">scopes:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.3.2-2.24">
-              <p id="section-3.3.2-2.24.1"><span class="bcp14">OPTIONAL</span>. An array of OAuth 2.0 scope values <span><a href="https://rfc-editor.org/rfc/rfc6749#section-3.3" class="relref">Section 3.3</a> of [<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> available to the user for this service. Individual connection objects <span class="bcp14">MAY</span> narrow this set.<a href="#section-3.3.2-2.24.1" class="pilcrow">¶</a></p>
-</dd>
-            <dd class="break"></dd>
-<dt id="section-3.3.2-2.25">mcp:</dt>
-            <dd style="margin-left: 1.5em" id="section-3.3.2-2.26">
-              <p id="section-3.3.2-2.26.1"><span class="bcp14">OPTIONAL</span>. Present only when <code>type</code> is <code>mcp</code>; see <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>.<a href="#section-3.3.2-2.26.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.2-2.20.1"><span class="bcp14">OPTIONAL</span>. Present only when <code>type</code> is <code>mcp</code>; see <a href="#type-mcp" class="auto internal xref">Section 3.4.2</a>.<a href="#section-3.3.2-2.20.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
-<p id="section-3.3.2-3">Extensions and service types <span class="bcp14">MAY</span> define additional members of the service object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.2-3" class="pilcrow">¶</a></p>
+<p id="section-3.3.2-3">The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object (<a href="#connection-object" class="auto internal xref">Section 3.3.4</a>) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.<a href="#section-3.3.2-3" class="pilcrow">¶</a></p>
+<p id="section-3.3.2-4">Extensions and service types <span class="bcp14">MAY</span> define additional members of the service object. Clients <span class="bcp14">MUST</span> ignore members they do not understand.<a href="#section-3.3.2-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="link-object">
@@ -1668,36 +1654,36 @@ Accept: application/json
 </dd>
           <dd class="break"></dd>
 </dl>
-<p id="section-3.3.4-4">The following members apply to connection methods that obtain a token from an OAuth 2.0 authorization server. They are <span class="bcp14">OPTIONAL</span> in general but, where present, are interpreted as described:<a href="#section-3.3.4-4" class="pilcrow">¶</a></p>
+<p id="section-3.3.4-4">The following members carry the OAuth 2.0 values for connection methods that obtain a token from an OAuth 2.0 authorization server (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, and <code>id_jag</code>). Because these values are specific to the OAuth scheme, they appear on the connection object, not on the service object; a connection object is self-contained and the client does not combine it with values from elsewhere in the catalog.<a href="#section-3.3.4-4" class="pilcrow">¶</a></p>
 <span class="break"></span><dl class="dlParallel" id="section-3.3.4-5">
             <dt id="section-3.3.4-5.1">authorization_server:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.2">
-              <p id="section-3.3.4-5.2.1">The issuer identifier <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> of the authorization server to use. <span class="bcp14">REQUIRED</span> for connection types that obtain a token from an authorization server. The client obtains the authorization server's endpoints and capabilities from its metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>.<a href="#section-3.3.4-5.2.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.2.1"><span class="bcp14">REQUIRED</span> for the OAuth-based connection types. The issuer identifier <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span> of the authorization server to use for this connection. The client obtains the authorization server's endpoints and capabilities from its metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>.<a href="#section-3.3.4-5.2.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-5.3">token_endpoint:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.4">
-              <p id="section-3.3.4-5.4.1">The authorization server's token endpoint URL. When present, the client <span class="bcp14">MAY</span> use it directly; when absent, the client obtains it from the authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>.<a href="#section-3.3.4-5.4.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.4.1"><span class="bcp14">OPTIONAL</span>. The authorization server's token endpoint URL. When present, the client <span class="bcp14">MAY</span> use it directly; when absent, the client obtains it from the authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>.<a href="#section-3.3.4-5.4.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-5.5">resource:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.6">
-              <p id="section-3.3.4-5.6.1">The resource indicator <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> the client includes when requesting a token. When absent, the client uses the service's <code>resource</code> member, if present.<a href="#section-3.3.4-5.6.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.6.1"><span class="bcp14">OPTIONAL</span>. The resource indicator <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> the client includes when requesting a token for this connection, as a canonical URI per <span><a href="https://rfc-editor.org/rfc/rfc8707#section-2" class="relref">Section 2</a> of [<a href="#RFC8707" class="cite xref">RFC8707</a>]</span>. This identifies the protected resource and corresponds to the resource described by a Protected Resource Metadata document <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>, which <span class="bcp14">MAY</span> be referenced by a <code>describedby</code> link (<a href="#link-object" class="auto internal xref">Section 3.3.3</a>).<a href="#section-3.3.4-5.6.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-5.7">scopes:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.8">
-              <p id="section-3.3.4-5.8.1">An array of OAuth 2.0 scope values to request. When absent, the client uses the service's <code>scopes</code> member, if present.<a href="#section-3.3.4-5.8.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.8.1"><span class="bcp14">OPTIONAL</span>. An array of OAuth 2.0 scope values <span><a href="https://rfc-editor.org/rfc/rfc6749#section-3.3" class="relref">Section 3.3</a> of [<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> to request for this connection.<a href="#section-3.3.4-5.8.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-5.9">client_id:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.10">
-              <p id="section-3.3.4-5.10.1">A static OAuth 2.0 client identifier the client uses with the <code>authorization_server</code>. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.<a href="#section-3.3.4-5.10.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.10.1"><span class="bcp14">OPTIONAL</span>. A static OAuth 2.0 client identifier the client uses with the <code>authorization_server</code>. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.<a href="#section-3.3.4-5.10.1" class="pilcrow">¶</a></p>
 </dd>
             <dd class="break"></dd>
 <dt id="section-3.3.4-5.11">client_registration:</dt>
             <dd style="margin-left: 1.5em" id="section-3.3.4-5.12">
-              <p id="section-3.3.4-5.12.1">How the client obtains a client identifier when <code>client_id</code> is absent: <code>dynamic</code> (register using OAuth 2.0 Dynamic Client Registration <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, discovering the registration endpoint from the authorization server metadata) or <code>none</code> (no client identifier is required). When both <code>client_id</code> and <code>client_registration</code> are absent, the client uses a client identity it determines is appropriate by other means.<a href="#section-3.3.4-5.12.1" class="pilcrow">¶</a></p>
+              <p id="section-3.3.4-5.12.1"><span class="bcp14">OPTIONAL</span>. How the client obtains a client identifier when <code>client_id</code> is absent: <code>dynamic</code> (register using OAuth 2.0 Dynamic Client Registration <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, discovering the registration endpoint from the authorization server metadata) or <code>none</code> (no client identifier is required). When both <code>client_id</code> and <code>client_registration</code> are absent, the client uses a client identity it determines is appropriate by other means.<a href="#section-3.3.4-5.12.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -1899,9 +1885,6 @@ Cache-Control: private, max-age=60
       "type": "rest",
       "categories": ["email"],
       "base_uri": "https://api.example.com/mail",
-      "resource": "https://api.example.com/mail",
-      "authorization_servers": ["https://as.example.com"],
-      "scopes": ["mail.read", "mail.send"],
       "links": [
         {"rel": "service-doc",
          "href": "https://dev.example.com/mail"},
@@ -1933,8 +1916,6 @@ Cache-Control: private, max-age=60
       "type": "mcp",
       "categories": ["ticketing"],
       "base_uri": "https://mcp.example.com/mcp",
-      "resource": "https://mcp.example.com/mcp",
-      "authorization_servers": ["https://as.example.com"],
       "mcp": {"transport": "streamable-http"},
       "links": [
         {"rel": "mcp-server-card",
@@ -2020,7 +2001,7 @@ WWW-Authenticate: Bearer
           <p id="section-4-2.3.1">For OAuth-based connection types, determine the client identity: use <code>client_id</code> if present; otherwise, if <code>client_registration</code> is <code>dynamic</code>, register with the authorization server using <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>; otherwise proceed without a client identifier if <code>client_registration</code> is <code>none</code>.<a href="#section-4-2.3.1" class="pilcrow">¶</a></p>
 </li>
         <li id="section-4-2.4">
-          <p id="section-4-2.4.1">Obtain the credential according to the connection <code>type</code> (see <a href="#connection-types" class="auto internal xref">Section 3.6</a>), including the <code>resource</code> <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> and <code>scopes</code> from the connection object or service object for OAuth-based types.<a href="#section-4-2.4.1" class="pilcrow">¶</a></p>
+          <p id="section-4-2.4.1">Obtain the credential according to the connection <code>type</code> (see <a href="#connection-types" class="auto internal xref">Section 3.6</a>), using the values on the selected connection object, including the <code>resource</code> <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> and <code>scopes</code> for OAuth-based types.<a href="#section-4-2.4.1" class="pilcrow">¶</a></p>
 </li>
         <li id="section-4-2.5">
           <p id="section-4-2.5.1">Call the service, presenting the credential as required (for example, as a bearer token <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>, an API key, or a client certificate). The client <span class="bcp14">MAY</span> consult a <code>describedby</code> link <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span> for token presentation requirements.<a href="#section-4-2.5.1" class="pilcrow">¶</a></p>
@@ -2034,7 +2015,7 @@ WWW-Authenticate: Bearer
       <h2 id="name-relationship-to-apisjson">
 <a href="#section-5" class="section-number selfRef">5. </a><a href="#name-relationship-to-apisjson" class="section-name selfRef">Relationship to APIs.json</a>
       </h2>
-<p id="section-5-1">The service object reuses the discoverability model of APIs.json <span>[<a href="#APISJSON" class="cite xref">APISJSON</a>]</span> while using a modern, OAuth-aligned JSON vocabulary. A service object maps to an APIs.json API entry as follows: <code>name</code> to <code>name</code>, <code>description</code> to <code>description</code>, <code>base_uri</code> to <code>baseURL</code>, <code>tags</code> to <code>tags</code>, and <code>links</code> to <code>properties</code> (where an APIs.json property <code>type</code> corresponds to a link <code>rel</code> and the property <code>url</code> to the link <code>href</code>; for example, an OpenAPI property corresponds to a <code>service-desc</code> link). The members <code>type</code>, <code>categories</code>, <code>resource</code>, <code>authorization_servers</code>, <code>scopes</code>, <code>mcp</code>, and <code>connections</code> carry the service-type and per-user authorization context that APIs.json does not model. A Catalog Provider <span class="bcp14">MAY</span> additionally serve a static, non-user-specific APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.<a href="#section-5-1" class="pilcrow">¶</a></p>
+<p id="section-5-1">The service object reuses the discoverability model of APIs.json <span>[<a href="#APISJSON" class="cite xref">APISJSON</a>]</span> while using a modern, OAuth-aligned JSON vocabulary. A service object maps to an APIs.json API entry as follows: <code>name</code> to <code>name</code>, <code>description</code> to <code>description</code>, <code>base_uri</code> to <code>baseURL</code>, <code>tags</code> to <code>tags</code>, and <code>links</code> to <code>properties</code> (where an APIs.json property <code>type</code> corresponds to a link <code>rel</code> and the property <code>url</code> to the link <code>href</code>; for example, an OpenAPI property corresponds to a <code>service-desc</code> link). The members <code>type</code>, <code>categories</code>, <code>mcp</code>, and <code>connections</code> (the last carrying the per-scheme authentication and per-user authorization context) have no APIs.json equivalent. A Catalog Provider <span class="bcp14">MAY</span> additionally serve a static, non-user-specific APIs.json document for tooling that consumes that format; such a document is out of scope for this specification.<a href="#section-5-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="relationship-to-token-exchange-target-service-discovery">
@@ -2098,7 +2079,7 @@ WWW-Authenticate: Bearer
         <h3 id="name-trust-in-the-catalog-provid">
 <a href="#section-7.5" class="section-number selfRef">7.5. </a><a href="#name-trust-in-the-catalog-provid" class="section-name selfRef">Trust in the Catalog Provider</a>
         </h3>
-<p id="section-7.5-1">A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. A malicious or compromised Catalog Provider could induce a client to connect to an attacker-controlled service, authorization server, or MCP server, or to present credentials to the wrong party. A client <span class="bcp14">SHOULD</span> obtain the Catalog Provider's base URL from a trusted source (<a href="#endpoint-discovery" class="auto internal xref">Section 3.1</a>), <span class="bcp14">MUST</span> validate that each <code>base_uri</code>, <code>authorization_server</code>, and <code>resource</code> is acceptable under its policy before connecting, and <span class="bcp14">SHOULD</span> apply the same scrutiny to resources referenced by <code>links</code> (such as a <code>service-desc</code> or <code>mcp-server-card</code>).<a href="#section-7.5-1" class="pilcrow">¶</a></p>
+<p id="section-7.5-1">A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. A malicious or compromised Catalog Provider could induce a client to connect to an attacker-controlled service, authorization server, or MCP server, or to present credentials to the wrong party. A client <span class="bcp14">SHOULD</span> obtain the Catalog Provider's base URL from a trusted source (<a href="#endpoint-discovery" class="auto internal xref">Section 3.1</a>), <span class="bcp14">MUST</span> validate that each service's <code>base_uri</code> and each connection's <code>authorization_server</code> and <code>resource</code> are acceptable under its policy before connecting, and <span class="bcp14">SHOULD</span> apply the same scrutiny to resources referenced by <code>links</code> (such as a <code>service-desc</code> or <code>mcp-server-card</code>).<a href="#section-7.5-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="confused-deputy-and-client-registration">
