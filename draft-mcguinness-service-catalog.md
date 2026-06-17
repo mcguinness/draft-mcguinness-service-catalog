@@ -314,7 +314,15 @@ mcp:
 a2a:
 : OPTIONAL. Present only when `type` is `a2a`; see {{type-a2a}}.
 
+tenant:
+: OPTIONAL. A machine-readable identifier for the tenant of a multi-tenant service, when this service object represents one tenant. It is descriptive -- it lets a client correlate the service, and the tokens it will obtain, with a tenant context -- and aligns with the tenant identifier used in {{TOKEN-EXCHANGE-DISCOVERY}} and {{I-D.oauth-identity-assertion-authz-grant}}.
+
+group:
+: OPTIONAL. A stable identifier shared by all service objects that are instances or tenants of the same logical service, so a client can group them (for example, in a picker). Service objects in the same group are otherwise independent: each has its own `id`, `base_uri`, `connections`, and per-user state.
+
 The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object ({{connection-object}}) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.
+
+A logical service the user can reach as more than one instance or tenant -- for example, regional deployments, or `dev` and `staging` tenants of one provider -- is represented as multiple service objects that share a `group` value, each independently connectable and, where applicable, carrying its own `tenant`. This mirrors the per-tenant target representation of {{TOKEN-EXCHANGE-DISCOVERY}}: the descriptive tenant identity lives on the service object, while any acquisition-time selector (such as a token-exchange `audience`) lives on the connection.
 
 Extensions and service types MAY define additional members of the service object. Clients MUST ignore members they do not understand.
 
@@ -356,6 +364,9 @@ status:
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
     * `consent_required`: Obtaining a credential requires user interaction (for example, an authorization code grant with user consent).
     * `unavailable`: The method is described for completeness but cannot currently be used by this user.
+
+account:
+: OPTIONAL. When the user has, or can establish, more than one account at the service, the account this connection is associated with. It is a JSON object with a REQUIRED `id` (an opaque, stable, provider-assigned identifier for the account) and an OPTIONAL `label` (a human-readable name for display, such as "Work"). Two connection objects of the same `type` that differ only by `account` represent two distinct accounts -- for example, two `connected` mailboxes the user can choose between. A connection with no `account` represents establishing a new account, or an account the provider does not distinguish. A `label` MAY be personal data; see {{privacy-considerations}}.
 
 The following members carry the OAuth 2.0 values for connection methods that obtain a token from an OAuth 2.0 authorization server (`token_exchange`, `authorization_code`, `client_credentials`, and `id_jag`). Because these values are specific to the OAuth scheme, they appear on the connection object, not on the service object; a connection object is self-contained and the client does not combine it with values from elsewhere in the catalog.
 
@@ -443,10 +454,7 @@ The client obtains a token by performing an OAuth 2.0 Token Exchange {{RFC8693}}
 Type-specific members:
 
 audience:
-: OPTIONAL. The `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI; it MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, the Catalog Provider returns a distinct connection object per tenant, each with a distinct `audience` value that selects the tenant.
-
-tenant:
-: OPTIONAL. A machine-readable identifier for the tenant of a multi-tenant service. This member is descriptive (it lets the client correlate the connection with the tenant context of the resulting token) and is not used as a request parameter; the `audience` value selects the tenant.
+: OPTIONAL. The `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI; it MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant; the tenant's descriptive identity is the service object's `tenant` member.
 
 supported_token_types:
 : OPTIONAL. An array of token type URIs {{RFC8693}} that may be requested. If omitted, the client may request any token type the authorization server supports.
@@ -466,10 +474,7 @@ The client obtains an access token by redeeming an Identity Assertion Authorizat
 Type-specific members:
 
 audience:
-: OPTIONAL. The audience value identifying the service for which the ID-JAG is requested.
-
-tenant:
-: OPTIONAL. A machine-readable identifier for the tenant of a multi-tenant service, with the same descriptive semantics as in {{type-token-exchange}}.
+: OPTIONAL. The audience value identifying the service for which the ID-JAG is requested. For a multi-tenant service, the tenant is represented as in {{type-token-exchange}}: a distinct, grouped service object carrying the descriptive `tenant`, with the audience selecting it.
 
 ### none {#type-none}
 
@@ -591,6 +596,72 @@ The following is a non-normative example response showing four services: an HTTP
       ]
     }
 
+## Multiple Instances and Accounts {#instances-accounts}
+
+A logical service the user can reach as more than one instance or tenant is returned as multiple service objects sharing a `group`; the user's multiple accounts at a service are returned as multiple connection objects distinguished by `account`. The following non-normative fragment shows abbreviated `services` entries: two tenants of one logical service, and a service the user is connected to under two accounts (with a third connection to add another).
+
+    {
+      "id": "saas-dev",
+      "name": "SaaS Example (Dev)",
+      "group": "saas-example",
+      "tenant": "dev",
+      "base_uri": "https://api.saas.example",
+      "connections": [
+        {
+          "type": "token_exchange",
+          "status": "available",
+          "authorization_server": "https://as.saas.example",
+          "resource": "https://api.saas.example",
+          "audience": "urn:saas:tenant:dev"
+        }
+      ]
+    },
+    {
+      "id": "saas-staging",
+      "name": "SaaS Example (Staging)",
+      "group": "saas-example",
+      "tenant": "staging",
+      "base_uri": "https://api.saas.example",
+      "connections": [
+        {
+          "type": "token_exchange",
+          "status": "available",
+          "authorization_server": "https://as.saas.example",
+          "resource": "https://api.saas.example",
+          "audience": "urn:saas:tenant:staging"
+        }
+      ]
+    },
+    {
+      "id": "mail",
+      "name": "Example Mail",
+      "categories": ["email"],
+      "base_uri": "https://api.example.com/mail",
+      "connections": [
+        {
+          "type": "token_exchange",
+          "status": "connected",
+          "account": {"id": "acct-1", "label": "Work"},
+          "authorization_server": "https://as.example.com",
+          "resource": "https://api.example.com/mail"
+        },
+        {
+          "type": "token_exchange",
+          "status": "connected",
+          "account": {"id": "acct-2", "label": "Personal"},
+          "authorization_server": "https://as.example.com",
+          "resource": "https://api.example.com/mail"
+        },
+        {
+          "type": "authorization_code",
+          "status": "consent_required",
+          "authorization_server": "https://as.example.com",
+          "resource": "https://api.example.com/mail",
+          "client_registration": "dynamic"
+        }
+      ]
+    }
+
 ## Error Response {#error-response}
 
 If the request fails, the Catalog Provider returns an HTTP error response. The response body, when present, is a problem details object {{RFC9457}} with the media type `application/problem+json`. The HTTP status code is set as follows:
@@ -696,6 +767,7 @@ The catalog is inherently personal: it describes the services a specific user ca
 
 * The Catalog Provider SHOULD return only information the authenticated user and client are authorized to know, applying the principle of least privilege.
 * The Catalog Provider SHOULD NOT include identifiers of other users or of tenants the user is not associated with.
+* Account labels (`account.label`) MAY be personal data (for example, an email address). The Catalog Provider SHOULD return the minimum needed for the user to distinguish accounts -- a display name or masked address -- and MAY omit the label entirely, leaving only the opaque `account.id`.
 * The Catalog Provider SHOULD log access in accordance with applicable privacy regulations and SHOULD minimize retention of catalog requests.
 * A deployment MAY provide mechanisms for users to review and limit the services exposed through the catalog.
 
