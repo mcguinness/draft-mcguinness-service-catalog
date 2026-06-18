@@ -1205,13 +1205,33 @@ Table of Contents
       supports authorization servers that require a pre-registered, per-
       service, or per-tenant client registration.
 
-   client_registration:  OPTIONAL.  A string describing how the client
-      obtains a client identifier when client_id is absent: dynamic
-      (register using OAuth 2.0 Dynamic Client Registration [RFC7591],
-      discovering the registration endpoint from the authorization
-      server metadata) or none (no client identifier is required).  When
-      both client_id and client_registration are absent, the client uses
-      a client identity it determines is appropriate by other means.
+   client_registration:  OPTIONAL.  A string naming how the client
+      establishes its identity with the authorization_server.  One of:
+
+      *  static: use the pre-assigned identifier in the client_id
+         member, which MUST be present.  This supports authorization
+         servers that require a pre-registered, per-service, or per-
+         tenant client.
+
+      *  dynamic: register using OAuth 2.0 Dynamic Client Registration
+         [RFC7591], discovering the registration endpoint from the
+         authorization server metadata.  The authorization server issues
+         the client identifier.
+
+      *  client_id_metadata_document: use an HTTPS URL the client
+         controls as its client_id, per [CIMD].  The authorization
+         server dereferences that URL to obtain the client's metadata,
+         with no pre-registration and no registration call.  Support is
+         advertised by client_id_metadata_document_supported in the
+         authorization server metadata [RFC8414].  Where an
+         authorization server has instead pre-registered a specific
+         Client ID Metadata Document URL, the catalog uses static and
+         carries that URL as the client_id.
+
+      When client_registration is absent, the client uses the client_id
+      if one is present, and otherwise an identity it determines is
+      appropriate by other means (including no client identifier where
+      the flow requires none).
 
    The OAuth values in a connection object (authorization_server,
    resource, scopes, and authorization_details_types) are an
@@ -1704,17 +1724,22 @@ Table of Contents
        whose status is connected or available over one whose status is
        consent_required, when more than one is suitable.
 
-   3.  For the oauth profile, determine the client identity:
+   3.  For the oauth profile, determine the client identity from
+       client_registration:
 
-       *  If client_id is present, use it.
+       *  static: use the client_id member.
 
-       *  Otherwise, if client_registration is dynamic, register with
-          the authorization server using [RFC7591], after first applying
-          a trust policy to the catalog-discovered authorization server
-          (Section 9.7).
+       *  dynamic: register with the authorization server using
+          [RFC7591], after first applying a trust policy to the catalog-
+          discovered authorization server (Section 9.7).
 
-       *  Otherwise, if client_registration is none, proceed without a
-          client identifier.
+       *  client_id_metadata_document: use an HTTPS URL the client
+          controls as its client_id, per [CIMD].  The authorization
+          server dereferences it, with no registration call.
+
+       When client_registration is absent, use the client_id if present,
+       and otherwise an identity the client determines is appropriate,
+       or none where the flow requires none.
 
    4.  Obtain the credential according to the connection profile and
        profile-specific type (see Section 5.7), using the values on the
@@ -2056,6 +2081,13 @@ Table of Contents
       authorization_server to the resource's Protected Resource Metadata
       (Section 5.7.1), so that it does not disclose client metadata to
       an authorization server it has not verified.
+
+   The Client ID Metadata Document mechanism ([CIMD]) is a lighter-
+   weight alternative to dynamic registration: it makes no registration
+   write and yields no client secret.  The client still presents its
+   client_id URL to a catalog-discovered authorization server, which
+   then dereferences it, so the same re-anchoring SHOULD precede its
+   use.
 
 9.8.  Authorization Server Mix-Up
 
@@ -2475,6 +2507,10 @@ Table of Contents
 
    [A2A]      "Agent2Agent (A2A) Protocol", <https://a2a-protocol.org/>.
 
+   [CIMD]     "OAuth Client ID Metadata Document", 2026,
+              <https://datatracker.ietf.org/doc/draft-ietf-oauth-client-
+              id-metadata-document/>.
+
    [ARD]      "Agentic Resource Discovery", 2026,
               <https://agenticresourcediscovery.org/>.
 
@@ -2584,6 +2620,13 @@ Document History
       connecting to an unfamiliar service needs a trust anchor; and made
       the overview's trust step profile-generic (re-anchoring as the
       oauth instance) and ordered it after connection selection.
+
+   *  Added the client_id_metadata_document client-registration mode
+      [CIMD] (the client uses an HTTPS URL it controls as its
+      client_id), and made client_registration an explicit mode
+      enumeration (static, dynamic, client_id_metadata_document) rather
+      than inferring the static case from the presence of client_id.
+      Dropped the ambiguous none value.
 
    *  Readability pass over the normative requirements: broke dense
       multi-requirement paragraphs (filter support, pagination, response

@@ -2141,7 +2141,19 @@ WWW-Authenticate: Bearer
             <dd class="break"></dd>
 <dt id="section-5.7.1-3.13">client_registration:</dt>
             <dd style="margin-left: 1.5em" id="section-5.7.1-3.14">
-              <p id="section-5.7.1-3.14.1"><span class="bcp14">OPTIONAL</span>. A string describing how the client obtains a client identifier when <code>client_id</code> is absent: <code>dynamic</code> (register using OAuth 2.0 Dynamic Client Registration <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, discovering the registration endpoint from the authorization server metadata) or <code>none</code> (no client identifier is required). When both <code>client_id</code> and <code>client_registration</code> are absent, the client uses a client identity it determines is appropriate by other means.<a href="#section-5.7.1-3.14.1" class="pilcrow">¶</a></p>
+              <p id="section-5.7.1-3.14.1"><span class="bcp14">OPTIONAL</span>. A string naming how the client establishes its identity with the <code>authorization_server</code>. One of:<a href="#section-5.7.1-3.14.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.7.1-3.14.2.1">
+                  <p id="section-5.7.1-3.14.2.1.1"><code>static</code>: use the pre-assigned identifier in the <code>client_id</code> member, which <span class="bcp14">MUST</span> be present. This supports authorization servers that require a pre-registered, per-service, or per-tenant client.<a href="#section-5.7.1-3.14.2.1.1" class="pilcrow">¶</a></p>
+</li>
+                <li class="normal" id="section-5.7.1-3.14.2.2">
+                  <p id="section-5.7.1-3.14.2.2.1"><code>dynamic</code>: register using OAuth 2.0 Dynamic Client Registration <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, discovering the registration endpoint from the authorization server metadata. The authorization server issues the client identifier.<a href="#section-5.7.1-3.14.2.2.1" class="pilcrow">¶</a></p>
+</li>
+                <li class="normal" id="section-5.7.1-3.14.2.3">
+                  <p id="section-5.7.1-3.14.2.3.1"><code>client_id_metadata_document</code>: use an HTTPS URL the client controls as its <code>client_id</code>, per <span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span>. The authorization server dereferences that URL to obtain the client's metadata, with no pre-registration and no registration call. Support is advertised by <code>client_id_metadata_document_supported</code> in the authorization server metadata <span>[<a href="#RFC8414" class="cite xref">RFC8414</a>]</span>. Where an authorization server has instead pre-registered a specific Client ID Metadata Document URL, the catalog uses <code>static</code> and carries that URL as the <code>client_id</code>.<a href="#section-5.7.1-3.14.2.3.1" class="pilcrow">¶</a></p>
+</li>
+              </ul>
+<p id="section-5.7.1-3.14.3">When <code>client_registration</code> is absent, the client uses the <code>client_id</code> if one is present, and otherwise an identity it determines is appropriate by other means (including no client identifier where the flow requires none).<a href="#section-5.7.1-3.14.3" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
 </dl>
@@ -2499,18 +2511,20 @@ Cache-Control: private, max-age=60
           <p id="section-6-2.2.1">Select a connection object. A client <span class="bcp14">SHOULD</span> prefer a connection whose <code>status</code> is <code>connected</code> or <code>available</code> over one whose <code>status</code> is <code>consent_required</code>, when more than one is suitable.<a href="#section-6-2.2.1" class="pilcrow">¶</a></p>
 </li>
         <li id="section-6-2.3">
-          <p id="section-6-2.3.1">For the <code>oauth</code> profile, determine the client identity:<a href="#section-6-2.3.1" class="pilcrow">¶</a></p>
+          <p id="section-6-2.3.1">For the <code>oauth</code> profile, determine the client identity from <code>client_registration</code>:<a href="#section-6-2.3.1" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-6-2.3.2.1">
-              <p id="section-6-2.3.2.1.1">If <code>client_id</code> is present, use it.<a href="#section-6-2.3.2.1.1" class="pilcrow">¶</a></p>
+              <p id="section-6-2.3.2.1.1"><code>static</code>: use the <code>client_id</code> member.<a href="#section-6-2.3.2.1.1" class="pilcrow">¶</a></p>
 </li>
             <li class="normal" id="section-6-2.3.2.2">
-              <p id="section-6-2.3.2.2.1">Otherwise, if <code>client_registration</code> is <code>dynamic</code>, register with the authorization server using <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, after first applying a trust policy to the catalog-discovered authorization server (<a href="#confused-deputy" class="auto internal xref">Section 9.7</a>).<a href="#section-6-2.3.2.2.1" class="pilcrow">¶</a></p>
+              <p id="section-6-2.3.2.2.1"><code>dynamic</code>: register with the authorization server using <span>[<a href="#RFC7591" class="cite xref">RFC7591</a>]</span>, after first applying a trust policy to the catalog-discovered authorization server (<a href="#confused-deputy" class="auto internal xref">Section 9.7</a>).<a href="#section-6-2.3.2.2.1" class="pilcrow">¶</a></p>
 </li>
             <li class="normal" id="section-6-2.3.2.3">
-              <p id="section-6-2.3.2.3.1">Otherwise, if <code>client_registration</code> is <code>none</code>, proceed without a client identifier.<a href="#section-6-2.3.2.3.1" class="pilcrow">¶</a></p>
+              <p id="section-6-2.3.2.3.1"><code>client_id_metadata_document</code>: use an HTTPS URL the client controls as its <code>client_id</code>, per <span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span>. The authorization server dereferences it, with no registration call.<a href="#section-6-2.3.2.3.1" class="pilcrow">¶</a></p>
 </li>
           </ul>
+<p id="section-6-2.3.3">
+When <code>client_registration</code> is absent, use the <code>client_id</code> if present, and otherwise an identity the client determines is appropriate, or none where the flow requires none.<a href="#section-6-2.3.3" class="pilcrow">¶</a></p>
 </li>
         <li id="section-6-2.4">
           <p id="section-6-2.4.1">Obtain the credential according to the connection <code>profile</code> and profile-specific <code>type</code> (see <a href="#connection-profiles" class="auto internal xref">Section 5.7</a>), using the values on the selected connection object, including the <code>resource</code> <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span> and <code>scopes</code> for OAuth connection types, after re-anchoring to the resource's metadata (<a href="#profile-oauth" class="auto internal xref">Section 5.7.1</a>).<a href="#section-6-2.4.1" class="pilcrow">¶</a></p>
@@ -2711,6 +2725,7 @@ A client maps its intended operations, tools, or skills to the minimal scopes an
             <p id="section-9.7-2.3.1">Before registering, the client <span class="bcp14">SHOULD</span> re-anchor the connection's <code>authorization_server</code> to the resource's Protected Resource Metadata (<a href="#profile-oauth" class="auto internal xref">Section 5.7.1</a>), so that it does not disclose client metadata to an authorization server it has not verified.<a href="#section-9.7-2.3.1" class="pilcrow">¶</a></p>
 </li>
         </ul>
+<p id="section-9.7-3">The Client ID Metadata Document mechanism (<span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span>) is a lighter-weight alternative to dynamic registration: it makes no registration write and yields no client secret. The client still presents its <code>client_id</code> URL to a catalog-discovered authorization server, which then dereferences it, so the same re-anchoring <span class="bcp14">SHOULD</span> precede its use.<a href="#section-9.7-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authorization-server-mix-up">
@@ -3249,6 +3264,10 @@ A client maps its intended operations, tools, or skills to the minimal scopes an
         <dd>
 <span class="refTitle">"Agent2Agent (A2A) Protocol"</span>, <span>&lt;<a href="https://a2a-protocol.org/">https://a2a-protocol.org/</a>&gt;</span>. </dd>
 <dd class="break"></dd>
+<dt id="CIMD">[CIMD]</dt>
+        <dd>
+<span class="refTitle">"OAuth Client ID Metadata Document"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/">https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
 <dt id="ARD">[ARD]</dt>
         <dd>
 <span class="refTitle">"Agentic Resource Discovery"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://agenticresourcediscovery.org/">https://agenticresourcediscovery.org/</a>&gt;</span>. </dd>
@@ -3331,10 +3350,13 @@ A client maps its intended operations, tools, or skills to the minimal scopes an
           <p id="appendix-A-2.15.1">Fixed defects from a follow-up review: reconciled the no-prior-relationship resource-confirmation rule with audience-only connections (which have no resource to confirm); defined "prior relationship" in terms of observable signals (<code>status</code> of <code>connected</code> or an <code>account</code>); clarified that <code>uid</code> identifies a single service object rather than a <code>group</code>'s logical service; noted in the introduction that discovery and planning are autonomous while connecting to an unfamiliar service needs a trust anchor; and made the overview's trust step profile-generic (re-anchoring as the <code>oauth</code> instance) and ordered it after connection selection.<a href="#appendix-A-2.15.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.16">
-          <p id="appendix-A-2.16.1">Readability pass over the normative requirements: broke dense multi-requirement paragraphs (filter support, pagination, response construction, error model, trust in the Catalog Provider, confused deputy, audience binding) into scannable bullet lists; split the client-identity branch, the <code>uid</code>, <code>account</code>, and intent <code>scopes</code> text into sub-lists; and split several long sentences. No normative changes.<a href="#appendix-A-2.16.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.16.1">Added the <code>client_id_metadata_document</code> client-registration mode <span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span> (the client uses an HTTPS URL it controls as its <code>client_id</code>), and made <code>client_registration</code> an explicit mode enumeration (<code>static</code>, <code>dynamic</code>, <code>client_id_metadata_document</code>) rather than inferring the static case from the presence of <code>client_id</code>. Dropped the ambiguous <code>none</code> value.<a href="#appendix-A-2.16.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.17">
-          <p id="appendix-A-2.17.1">Addressed external review: catalog-asserted <code>connected</code> no longer waives independent resource confirmation (the client must corroborate the relationship from its own state, local policy, or user confirmation), and the autonomous "safe baseline" is recast as necessary-but-not-sufficient "minimum technical checks"; audience-only connections now require local policy to bind the (<code>authorization_server</code>, <code>audience</code>) pair to the intended service; softened the <code>present</code> <code>apiKey</code> rule to preserve OpenAPI fidelity (<span class="bcp14">SHOULD</span>-not-advertise / client-rejects-by-default for <code>in: query</code>); gave <code>uid</code> an issuer-controlled minting model and a privacy note; specified <code>Accept</code> negotiation for absent/<code>*/*</code>/<code>application/*+json</code>; and shortened the Agentic Resource Discovery comparison to one paragraph.<a href="#appendix-A-2.17.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.17.1">Readability pass over the normative requirements: broke dense multi-requirement paragraphs (filter support, pagination, response construction, error model, trust in the Catalog Provider, confused deputy, audience binding) into scannable bullet lists; split the client-identity branch, the <code>uid</code>, <code>account</code>, and intent <code>scopes</code> text into sub-lists; and split several long sentences. No normative changes.<a href="#appendix-A-2.17.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-2.18">
+          <p id="appendix-A-2.18.1">Addressed external review: catalog-asserted <code>connected</code> no longer waives independent resource confirmation (the client must corroborate the relationship from its own state, local policy, or user confirmation), and the autonomous "safe baseline" is recast as necessary-but-not-sufficient "minimum technical checks"; audience-only connections now require local policy to bind the (<code>authorization_server</code>, <code>audience</code>) pair to the intended service; softened the <code>present</code> <code>apiKey</code> rule to preserve OpenAPI fidelity (<span class="bcp14">SHOULD</span>-not-advertise / client-rejects-by-default for <code>in: query</code>); gave <code>uid</code> an issuer-controlled minting model and a privacy note; specified <code>Accept</code> negotiation for absent/<code>*/*</code>/<code>application/*+json</code>; and shortened the Agentic Resource Discovery comparison to one paragraph.<a href="#appendix-A-2.18.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 <p id="appendix-A-3">-00<a href="#appendix-A-3" class="pilcrow">¶</a></p>
