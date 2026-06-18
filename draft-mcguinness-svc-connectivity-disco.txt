@@ -122,7 +122,6 @@ Table of Contents
      12.1.  Normative References
      12.2.  Informative References
    Document History
-   Acknowledgments
    Author's Address
 
 1.  Introduction
@@ -2573,144 +2572,75 @@ Document History
    -01
 
    *  Retitled to "Per-User Service Connectivity Discovery" and
-      repositioned around authorization-aware connectivity discovery.
-
-   *  Fixed the omit-empty contradiction: services is always present,
-      empty when none.
-
-   *  Extended re-anchoring to non-OAuth connections (out-of-band
-      binding for pre_authorized/none/API key/mTLS), and noted re-
-      anchoring does not establish resource authenticity.
+      repositioned around per-user, authorization-aware connectivity
+      discovery.
 
    *  Restructured connection methods into a core connection object plus
-      connection profiles, with oauth, pre_authorized, proxy_injected,
-      and none as the initial profiles and an OAuth-specific connection
-      type registry.
+      connection profiles (oauth, pre_authorized, proxy_injected, none),
+      with profile-specific acquisition types for oauth (token_exchange,
+      authorization_code, client_credentials, id_jag) in their own
+      registry.
 
-   *  Clarified filtering (whole-object selection, effective status),
+   *  Made client_registration an explicit mode enumeration and added
+      the client_id_metadata_document (CIMD) mode [CIMD], in which the
+      client uses an HTTPS URL it controls as its client_id.
+
+   *  Specified the presentation layer: present is an OpenAPI 3.1+
+      Security Scheme Object with casing preserved, apiKey schemes are
+      recommended to use in: header, and the catalog references a
+      service's descriptor rather than restating its security schemes.
+
+   *  Established the trust model.  A client re-anchors each oauth
+      connection to the resource's Protected Resource Metadata before
+      using it.  A catalog-asserted relationship (status of connected)
+      is a hint, not proof, and does not waive independent resource
+      confirmation, which the client meets from its own corroborated
+      state, local policy, or user confirmation.  Audience-only
+      token_exchange/id_jag connections additionally bind the
+      (authorization_server, audience) pair through local policy.  A
+      "Trust Requirements for Autonomous Clients" section states the
+      minimum technical checks as necessary but not sufficient.
+
+   *  Framed inclusion as two levels: discoverability authorization
+      (what the catalog asserts) versus runtime authorization (the
+      service and its authorization server's decision at call time).
+
+   *  Added a mandatory-to-implement bearer authentication baseline and
+      made the dynamic-registration trust gate a MUST for autonomous
+      clients.
+
+   *  Gave pre_authorized, proxy_injected, and none out-of-band service-
+      identity and trust requirements, and noted the intermediary-
+      credential and injection-selection trust dependencies of
+      proxy_injected.
+
+   *  Added an optional uid cross-catalog service identifier with an
+      issuer-controlled minting model and privacy guidance.
+
+   *  Specified filtering (whole-object selection, effective status),
       pagination (next-page precedence, limit bounds, best-effort
-      snapshot), and the error model (429/Retry-After, distinct problem
-      types).
-
-   *  Pinned present to OpenAPI 3.1+ and forbade casing normalization.
-      Added a mandatory-to-implement bearer auth baseline.  Made the DCR
-      trust-gate a MUST for autonomous clients.
-
-   *  Clarified multi-account silent acquisition, the audience
-      selector's trust basis, client_credentials status, base_uri vs
-      resource, and the status default caution.  Dropped the decorative
-      version member.
-
-   *  Added the proxy_injected connection profile for the agent-holds-
-      zero-secrets model, where a trusted intermediary attaches the
-      credential on egress.
+      snapshot), Accept content negotiation, and the error model (429
+      with Retry-After, distinct problem types); and fixed the omit-
+      empty rule so services is always present, empty when none.
 
    *  Reframed the intent section: the catalog provides candidate
       services and an access ceiling, not the intent-to-minimal-grant
-      mapping (which the client derives from the service descriptor and
-      RAR type metadata), and mcp services are generally scopable only
-      at server granularity.
+      mapping (the client derives that from the service descriptor and
+      Rich Authorization Requests type metadata), and mcp services are
+      generally scopable only at server granularity.
 
-   *  Resolved the re-anchoring contradiction for audience-only
-      token_exchange/id_jag connections (no resource/Protected Resource
-      Metadata): defined an alternative trust anchor on the
-      authorization_server rather than requiring resource re-anchoring
-      those connections cannot satisfy.
-
-   *  Required none-profile clients to establish service identity from a
-      trusted source before sending user data, aligning it with the
-      other non-oauth profiles.
+   *  Added a Relationship to Other Work entry distinguishing Agentic
+      Resource Discovery (public, pre-invocation, publisher-signed) from
+      this per-user, authenticated connectivity layer.
 
    *  Moved DPoP [RFC9449] to normative references (it is cited with a
-      conditional MUST), and clarified the Connection Method
-      definition's two-layer wording.
-
-   *  Added an optional uid service identifier for cross-catalog and
-      cross-provider correlation, and a Relationship to Other Work entry
-      distinguishing Agentic Resource Discovery (public, pre-invocation,
-      publisher-signed) from this document's per-user, authenticated
-      connectivity layer.
-
-   *  Hardened the design against a stress test: extended independent
-      resource confirmation to any no-prior-relationship connection
-      regardless of status (silent available connections need it most);
-      added a "Trust Requirements for Autonomous Clients" section
-      consolidating the safe zero-config baseline; restricted a present
-      apiKey to in: header (no credential in the request URI); and
-      softened the proxy_injected exposure claim to note the
-      intermediary credential and injection-selection trust dependency.
-
-   *  Fixed defects from a follow-up review: reconciled the no-prior-
-      relationship resource-confirmation rule with audience-only
-      connections (which have no resource to confirm); defined "prior
-      relationship" in terms of observable signals (status of connected
-      or an account); clarified that uid identifies a single service
-      object rather than a group's logical service; noted in the
-      introduction that discovery and planning are autonomous while
-      connecting to an unfamiliar service needs a trust anchor; and made
-      the overview's trust step profile-generic (re-anchoring as the
-      oauth instance) and ordered it after connection selection.
-
-   *  Lowered the Service Category registry policy from Specification
-      Required to Expert Review, since a category is a descriptive label
-      rather than something that changes client behavior.  The protocol-
-      affecting registries (service type, connection profile, OAuth
-      connection type) keep Specification Required.
-
-   *  Tightened the trust model around connected: the status definition
-      now states it is the provider's assertion that an account or
-      linkage exists, not that a credential is in hand, the service is
-      the intended one, or calling is safe, and that it does not waive
-      the Section 5.7.1 checks.  Reframed Authority for Inclusion as two
-      explicit levels, discoverability authorization (what the catalog
-      asserts) versus runtime authorization (the service and
-      authorization server's decision at call time).
-
-   *  Follow-up review cleanups: noted that client_registration values
-      are extended by specifications updating the oauth profile and that
-      an unknown value is not used; removed the duplicated client_id/
-      static rationale and stated when client_id is present or absent;
-      aligned the authorization_code client-identity wording with the
-      explicit modes; noted that client_credentials satisfies resource
-      confirmation by local policy; and split a remaining dense
-      sentence.
-
-   *  Added the client_id_metadata_document client-registration mode
-      [CIMD] (the client uses an HTTPS URL it controls as its
-      client_id), and made client_registration an explicit mode
-      enumeration (static, dynamic, client_id_metadata_document) rather
-      than inferring the static case from the presence of client_id.
-      Dropped the ambiguous none value.
-
-   *  Readability pass over the normative requirements: broke dense
-      multi-requirement paragraphs (filter support, pagination, response
-      construction, error model, trust in the Catalog Provider, confused
-      deputy, audience binding) into scannable bullet lists; split the
-      client-identity branch, the uid, account, and intent scopes text
-      into sub-lists; and split several long sentences.  No normative
-      changes.
-
-   *  Addressed external review: catalog-asserted connected no longer
-      waives independent resource confirmation (the client must
-      corroborate the relationship from its own state, local policy, or
-      user confirmation), and the autonomous "safe baseline" is recast
-      as necessary-but-not-sufficient "minimum technical checks";
-      audience-only connections now require local policy to bind the
-      (authorization_server, audience) pair to the intended service;
-      softened the present apiKey rule to preserve OpenAPI fidelity
-      (SHOULD-not-advertise / client-rejects-by-default for in: query);
-      gave uid an issuer-controlled minting model and a privacy note;
-      specified Accept negotiation for absent/*/*/application/*+json;
-      and shortened the Agentic Resource Discovery comparison to one
-      paragraph.
+      conditional MUST), and set the Service Category registry to Expert
+      Review while keeping Specification Required for the protocol-
+      affecting registries.
 
    -00
 
    *  Initial revision.
-
-Acknowledgments
-
-   TODO acknowledge.
 
 Author's Address
 

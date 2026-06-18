@@ -9,7 +9,7 @@
 <meta content="
        This specification defines per-user service connectivity discovery: a standardized answer to the question &quot;which services can this user and client connect to right now, and how?&quot; Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint (discovered from the user's identity provider metadata after sign-in) and receives a catalog, scoped to that user, of the reachable services and, for each, one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS). OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token. 
     " name="description">
-<meta content="xml2rfc 3.33.0" name="generator">
+<meta content="xml2rfc 3.34.0" name="generator">
 <meta content="OAuth 2.0" name="keyword">
 <meta content="Discovery" name="keyword">
 <meta content="Connectivity" name="keyword">
@@ -19,18 +19,19 @@
 <meta content="Authorization" name="keyword">
 <meta content="draft-mcguinness-svc-connectivity-disco-latest" name="ietf.draft">
 <!-- Generator version information:
-  xml2rfc 3.33.0
-    Python 3.12.13
-    ConfigArgParse 1.7
+  xml2rfc 3.34.0
+    Python 3.14.5
+    ConfigArgParse 1.7.5
     google-i18n-address 3.1.1
     intervaltree 3.2.1
     Jinja2 3.1.6
-    lxml 6.0.2
-    platformdirs 4.9.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.0
     pycountry 24.6.1
     PyYAML 6.0.3
     requests 2.33.1
-    wcwidth 0.7.0
+    wcwidth 0.8.1
 -->
 <link href="draft-mcguinness-svc-connectivity-disco.xml" rel="alternate" type="application/rfc+xml">
 <link href="#copyright" rel="license">
@@ -1331,10 +1332,7 @@ svg {
             <p id="section-toc.1-1.13.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-document-history" class="internal xref">Document History</a></p>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
-            <p id="section-toc.1-1.14.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
-</li>
-          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
-            <p id="section-toc.1-1.15.1"><a href="#appendix-C" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+            <p id="section-toc.1-1.14.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
 </li>
         </ul>
 </nav>
@@ -3315,67 +3313,43 @@ A client maps its intended operations, tools, or skills to the minimal scopes an
 <p id="appendix-A-1">-01<a href="#appendix-A-1" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="appendix-A-2.1">
-          <p id="appendix-A-2.1.1">Retitled to "Per-User Service Connectivity Discovery" and repositioned around authorization-aware connectivity discovery.<a href="#appendix-A-2.1.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.1.1">Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.<a href="#appendix-A-2.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.2">
-          <p id="appendix-A-2.2.1">Fixed the omit-empty contradiction: <code>services</code> is always present, empty when none.<a href="#appendix-A-2.2.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.2.1">Restructured connection methods into a core connection object plus connection profiles (<code>oauth</code>, <code>pre_authorized</code>, <code>proxy_injected</code>, <code>none</code>), with profile-specific acquisition <code>type</code>s for <code>oauth</code> (<code>token_exchange</code>, <code>authorization_code</code>, <code>client_credentials</code>, <code>id_jag</code>) in their own registry.<a href="#appendix-A-2.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.3">
-          <p id="appendix-A-2.3.1">Extended re-anchoring to non-OAuth connections (out-of-band binding for <code>pre_authorized</code>/<code>none</code>/API key/mTLS), and noted re-anchoring does not establish resource authenticity.<a href="#appendix-A-2.3.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.3.1">Made <code>client_registration</code> an explicit mode enumeration and added the <code>client_id_metadata_document</code> (CIMD) mode <span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span>, in which the client uses an HTTPS URL it controls as its <code>client_id</code>.<a href="#appendix-A-2.3.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.4">
-          <p id="appendix-A-2.4.1">Restructured connection methods into a core connection object plus connection profiles, with <code>oauth</code>, <code>pre_authorized</code>, <code>proxy_injected</code>, and <code>none</code> as the initial profiles and an OAuth-specific connection type registry.<a href="#appendix-A-2.4.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.4.1">Specified the presentation layer: <code>present</code> is an OpenAPI 3.1+ Security Scheme Object with casing preserved, <code>apiKey</code> schemes are recommended to use <code>in: header</code>, and the catalog references a service's descriptor rather than restating its security schemes.<a href="#appendix-A-2.4.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.5">
-          <p id="appendix-A-2.5.1">Clarified filtering (whole-object selection, effective status), pagination (next-page precedence, <code>limit</code> bounds, best-effort snapshot), and the error model (429/<code>Retry-After</code>, distinct problem <code>type</code>s).<a href="#appendix-A-2.5.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.5.1">Established the trust model. A client re-anchors each <code>oauth</code> connection to the resource's Protected Resource Metadata before using it. A catalog-asserted relationship (<code>status</code> of <code>connected</code>) is a hint, not proof, and does not waive independent resource confirmation, which the client meets from its own corroborated state, local policy, or user confirmation. Audience-only <code>token_exchange</code>/<code>id_jag</code> connections additionally bind the (<code>authorization_server</code>, <code>audience</code>) pair through local policy. A "Trust Requirements for Autonomous Clients" section states the minimum technical checks as necessary but not sufficient.<a href="#appendix-A-2.5.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.6">
-          <p id="appendix-A-2.6.1">Pinned <code>present</code> to OpenAPI 3.1+ and forbade casing normalization. Added a mandatory-to-implement bearer auth baseline. Made the DCR trust-gate a <span class="bcp14">MUST</span> for autonomous clients.<a href="#appendix-A-2.6.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.6.1">Framed inclusion as two levels: discoverability authorization (what the catalog asserts) versus runtime authorization (the service and its authorization server's decision at call time).<a href="#appendix-A-2.6.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.7">
-          <p id="appendix-A-2.7.1">Clarified multi-account silent acquisition, the <code>audience</code> selector's trust basis, <code>client_credentials</code> status, <code>base_uri</code> vs <code>resource</code>, and the status default caution. Dropped the decorative <code>version</code> member.<a href="#appendix-A-2.7.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.7.1">Added a mandatory-to-implement bearer authentication baseline and made the dynamic-registration trust gate a <span class="bcp14">MUST</span> for autonomous clients.<a href="#appendix-A-2.7.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.8">
-          <p id="appendix-A-2.8.1">Added the <code>proxy_injected</code> connection profile for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.<a href="#appendix-A-2.8.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.8.1">Gave <code>pre_authorized</code>, <code>proxy_injected</code>, and <code>none</code> out-of-band service-identity and trust requirements, and noted the intermediary-credential and injection-selection trust dependencies of <code>proxy_injected</code>.<a href="#appendix-A-2.8.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.9">
-          <p id="appendix-A-2.9.1">Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (which the client derives from the service descriptor and RAR type metadata), and <code>mcp</code> services are generally scopable only at server granularity.<a href="#appendix-A-2.9.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.9.1">Added an optional <code>uid</code> cross-catalog service identifier with an issuer-controlled minting model and privacy guidance.<a href="#appendix-A-2.9.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.10">
-          <p id="appendix-A-2.10.1">Resolved the re-anchoring contradiction for audience-only <code>token_exchange</code>/<code>id_jag</code> connections (no <code>resource</code>/Protected Resource Metadata): defined an alternative trust anchor on the <code>authorization_server</code> rather than requiring resource re-anchoring those connections cannot satisfy.<a href="#appendix-A-2.10.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.10.1">Specified filtering (whole-object selection, effective status), pagination (next-page precedence, <code>limit</code> bounds, best-effort snapshot), <code>Accept</code> content negotiation, and the error model (429 with <code>Retry-After</code>, distinct problem <code>type</code>s); and fixed the omit-empty rule so <code>services</code> is always present, empty when none.<a href="#appendix-A-2.10.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.11">
-          <p id="appendix-A-2.11.1">Required <code>none</code>-profile clients to establish service identity from a trusted source before sending user data, aligning it with the other non-<code>oauth</code> profiles.<a href="#appendix-A-2.11.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.11.1">Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (the client derives that from the service descriptor and Rich Authorization Requests type metadata), and <code>mcp</code> services are generally scopable only at server granularity.<a href="#appendix-A-2.11.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.12">
-          <p id="appendix-A-2.12.1">Moved DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> to normative references (it is cited with a conditional <span class="bcp14">MUST</span>), and clarified the Connection Method definition's two-layer wording.<a href="#appendix-A-2.12.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.12.1">Added a Relationship to Other Work entry distinguishing Agentic Resource Discovery (public, pre-invocation, publisher-signed) from this per-user, authenticated connectivity layer.<a href="#appendix-A-2.12.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="appendix-A-2.13">
-          <p id="appendix-A-2.13.1">Added an optional <code>uid</code> service identifier for cross-catalog and cross-provider correlation, and a Relationship to Other Work entry distinguishing Agentic Resource Discovery (public, pre-invocation, publisher-signed) from this document's per-user, authenticated connectivity layer.<a href="#appendix-A-2.13.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.14">
-          <p id="appendix-A-2.14.1">Hardened the design against a stress test: extended independent resource confirmation to any no-prior-relationship connection regardless of <code>status</code> (silent <code>available</code> connections need it most); added a "Trust Requirements for Autonomous Clients" section consolidating the safe zero-config baseline; restricted a <code>present</code> <code>apiKey</code> to <code>in: header</code> (no credential in the request URI); and softened the <code>proxy_injected</code> exposure claim to note the intermediary credential and injection-selection trust dependency.<a href="#appendix-A-2.14.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.15">
-          <p id="appendix-A-2.15.1">Fixed defects from a follow-up review: reconciled the no-prior-relationship resource-confirmation rule with audience-only connections (which have no resource to confirm); defined "prior relationship" in terms of observable signals (<code>status</code> of <code>connected</code> or an <code>account</code>); clarified that <code>uid</code> identifies a single service object rather than a <code>group</code>'s logical service; noted in the introduction that discovery and planning are autonomous while connecting to an unfamiliar service needs a trust anchor; and made the overview's trust step profile-generic (re-anchoring as the <code>oauth</code> instance) and ordered it after connection selection.<a href="#appendix-A-2.15.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.16">
-          <p id="appendix-A-2.16.1">Lowered the Service Category registry policy from Specification Required to Expert Review, since a category is a descriptive label rather than something that changes client behavior. The protocol-affecting registries (service type, connection profile, OAuth connection type) keep Specification Required.<a href="#appendix-A-2.16.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.17">
-          <p id="appendix-A-2.17.1">Tightened the trust model around <code>connected</code>: the <code>status</code> definition now states it is the provider's assertion that an account or linkage exists, not that a credential is in hand, the service is the intended one, or calling is safe, and that it does not waive the <a href="#profile-oauth" class="auto internal xref">Section 5.7.1</a> checks. Reframed Authority for Inclusion as two explicit levels, discoverability authorization (what the catalog asserts) versus runtime authorization (the service and authorization server's decision at call time).<a href="#appendix-A-2.17.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.18">
-          <p id="appendix-A-2.18.1">Follow-up review cleanups: noted that <code>client_registration</code> values are extended by specifications updating the <code>oauth</code> profile and that an unknown value is not used; removed the duplicated <code>client_id</code>/<code>static</code> rationale and stated when <code>client_id</code> is present or absent; aligned the <code>authorization_code</code> client-identity wording with the explicit modes; noted that <code>client_credentials</code> satisfies resource confirmation by local policy; and split a remaining dense sentence.<a href="#appendix-A-2.18.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.19">
-          <p id="appendix-A-2.19.1">Added the <code>client_id_metadata_document</code> client-registration mode <span>[<a href="#CIMD" class="cite xref">CIMD</a>]</span> (the client uses an HTTPS URL it controls as its <code>client_id</code>), and made <code>client_registration</code> an explicit mode enumeration (<code>static</code>, <code>dynamic</code>, <code>client_id_metadata_document</code>) rather than inferring the static case from the presence of <code>client_id</code>. Dropped the ambiguous <code>none</code> value.<a href="#appendix-A-2.19.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.20">
-          <p id="appendix-A-2.20.1">Readability pass over the normative requirements: broke dense multi-requirement paragraphs (filter support, pagination, response construction, error model, trust in the Catalog Provider, confused deputy, audience binding) into scannable bullet lists; split the client-identity branch, the <code>uid</code>, <code>account</code>, and intent <code>scopes</code> text into sub-lists; and split several long sentences. No normative changes.<a href="#appendix-A-2.20.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="appendix-A-2.21">
-          <p id="appendix-A-2.21.1">Addressed external review: catalog-asserted <code>connected</code> no longer waives independent resource confirmation (the client must corroborate the relationship from its own state, local policy, or user confirmation), and the autonomous "safe baseline" is recast as necessary-but-not-sufficient "minimum technical checks"; audience-only connections now require local policy to bind the (<code>authorization_server</code>, <code>audience</code>) pair to the intended service; softened the <code>present</code> <code>apiKey</code> rule to preserve OpenAPI fidelity (<span class="bcp14">SHOULD</span>-not-advertise / client-rejects-by-default for <code>in: query</code>); gave <code>uid</code> an issuer-controlled minting model and a privacy note; specified <code>Accept</code> negotiation for absent/<code>*/*</code>/<code>application/*+json</code>; and shortened the Agentic Resource Discovery comparison to one paragraph.<a href="#appendix-A-2.21.1" class="pilcrow">¶</a></p>
+          <p id="appendix-A-2.13.1">Moved DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> to normative references (it is cited with a conditional <span class="bcp14">MUST</span>), and set the Service Category registry to Expert Review while keeping Specification Required for the protocol-affecting registries.<a href="#appendix-A-2.13.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 <p id="appendix-A-3">-00<a href="#appendix-A-3" class="pilcrow">¶</a></p>
@@ -3386,16 +3360,8 @@ A client maps its intended operations, tools, or skills to the minimal scopes an
       </ul>
 </section>
 </div>
-<div id="acknowledgments">
-<section id="appendix-B">
-      <h2 id="name-acknowledgments">
-<a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
-      </h2>
-<p id="appendix-B-1">TODO acknowledge.<a href="#appendix-B-1" class="pilcrow">¶</a></p>
-</section>
-</div>
 <div id="authors-addresses">
-<section id="appendix-C">
+<section id="appendix-B">
       <h2 id="name-authors-address">
 <a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
       </h2>
