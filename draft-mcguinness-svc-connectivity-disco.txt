@@ -941,12 +941,12 @@ Table of Contents
    "Service Catalog Service Category" registry (Section 11.5) to
    describe what a service does.  This document seeds the registry with
    the values email, calendar, contacts, files, chat, tasks, crm, and
-   ticketing.  The registry is extensible under a Specification Required
-   policy (Section 11.5) so the shared vocabulary stays coherent.
-   Private or experimental categories use a collision-resistant
-   namespaced form.  An agent can rely on registered values to find a
-   service by capability (for example, "an email service") rather than
-   by name.
+   ticketing.  The registry is extensible under an Expert Review policy
+   (Section 11.5) so the shared vocabulary stays coherent while keeping
+   the bar to add a common category low.  Private or experimental
+   categories use a collision-resistant namespaced form.  An agent can
+   rely on registered values to find a service by capability (for
+   example, "an email service") rather than by name.
 
 5.5.  Link Object
 
@@ -2256,14 +2256,20 @@ Table of Contents
    IANA is requested to establish the "Service Catalog Service Category"
    registry for values of the categories member of a service object and
    the category query parameter (Section 5.4).  The registration policy
-   is Specification Required, so that the well-known category vocabulary
-   agents plan against stays coherent.  Each registration contains the
-   category value, a brief description, and a reference.  Values are
-   case-sensitive strings of printable ASCII characters without
-   whitespace.  An implementation-specific or experimental category that
-   is not registered MUST use a collision-resistant, namespaced form
-   (for example, a reverse-DNS prefix such as com.example.crm) so it
-   cannot clash with a registered value.  Initial contents:
+   is Expert Review, a lighter bar than the Specification Required used
+   for the protocol-affecting registries, since a category is a
+   descriptive capability label rather than something that changes
+   client behavior.  The designated expert should confirm that a
+   proposed category is broadly applicable, is not a near-duplicate of
+   an existing value, and has a clear description, so that the
+   vocabulary agents plan against stays coherent.  Each registration
+   contains the category value, a brief description, and a reference or
+   contact.  Values are case-sensitive strings of printable ASCII
+   characters without whitespace.  An implementation-specific or
+   experimental category that is not registered MUST use a collision-
+   resistant, namespaced form (for example, a reverse-DNS prefix such as
+   com.example.crm) so it cannot clash with a registered value.  Initial
+   contents:
 
     +===========+======================================+=============+
     | Category  | Description                          | Reference   |
@@ -2644,6 +2650,12 @@ Document History
       connecting to an unfamiliar service needs a trust anchor; and made
       the overview's trust step profile-generic (re-anchoring as the
       oauth instance) and ordered it after connection selection.
+
+   *  Lowered the Service Category registry policy from Specification
+      Required to Expert Review, since a category is a descriptive label
+      rather than something that changes client behavior.  The protocol-
+      affecting registries (service type, connection profile, OAuth
+      connection type) keep Specification Required.
 
    *  Tightened the trust model around connected: the status definition
       now states it is the provider's assertion that an account or
