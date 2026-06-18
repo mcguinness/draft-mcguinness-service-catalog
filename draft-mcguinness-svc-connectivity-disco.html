@@ -1053,7 +1053,7 @@ svg {
 </tr></thead>
 <tfoot><tr>
 <td class="left">McGuinness</td>
-<td class="center">Expires 19 December 2026</td>
+<td class="center">Expires 20 December 2026</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1066,12 +1066,12 @@ svg {
 <dd class="internet-draft">draft-mcguinness-svc-connectivity-disco-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-06-17" class="published">17 June 2026</time>
+<time datetime="2026-06-18" class="published">18 June 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Standards Track</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2026-12-19">19 December 2026</time></dd>
+<dd class="expires"><time datetime="2026-12-20">20 December 2026</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1105,7 +1105,7 @@ svg {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 19 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 20 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -2417,20 +2417,20 @@ Cache-Control: private, max-age=60
       <h2 id="name-intent-based-use-and-resour">
 <a href="#section-7" class="section-number selfRef">7. </a><a href="#name-intent-based-use-and-resour" class="section-name selfRef">Intent-Based Use and Resource Discovery</a>
       </h2>
-<p id="section-7-1">An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog supports planning before commitment in two ways.<a href="#section-7-1" class="pilcrow">¶</a></p>
+<p id="section-7-1">An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog's role here is bounded. It provides the candidate services (filterable by <code>category</code> and <code>tags</code>) and, per connection, an upper bound on the available access (<a href="#connection-object" class="auto internal xref">Section 5.6</a>). It does not compute the minimal access a given task needs: mapping an intent to the least-privilege request is the client's job, using the service's descriptor and, for Rich Authorization Requests, the type metadata referenced below. The catalog supports planning before commitment in two ways.<a href="#section-7-1" class="pilcrow">¶</a></p>
 <p id="section-7-2">First, a client can plan from descriptors without connecting:<a href="#section-7-2" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-7-3.1">
           <p id="section-7-3.1.1">A service object's <code>links</code> reference the service's capability descriptor, for example, an OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span> document via a <code>service-desc</code> link, or an MCP Server Card <span>[<a href="#MCP-SERVER-CARD" class="cite xref">MCP-SERVER-CARD</a>]</span> via an <code>mcp-server-card</code> link. A client <span class="bcp14">MAY</span> read these to understand a service's operations and resources, and plan, without obtaining any token.<a href="#section-7-3.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-7-3.2">
-          <p id="section-7-3.2.1">The connection's <code>scopes</code> and <code>authorization_details_types</code> are only an upper bound (<a href="#connection-object" class="auto internal xref">Section 5.6</a>). The authoritative, fine-grained requirements come from the service, and their granularity differs by service type. An <code>http</code> service described by OpenAPI exposes operations with per-operation <code>security</code> and required scopes; an <code>mcp</code> service exposes tools enumerated at runtime, where scopes are typically server-wide (via the server's Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>) rather than per-tool; an <code>a2a</code> service exposes skills described in its Agent Card. A client maps its intended operations, tools, or skills to the minimal scopes and authorization details it must request.<a href="#section-7-3.2.1" class="pilcrow">¶</a></p>
+          <p id="section-7-3.2.1">The connection's <code>scopes</code> and <code>authorization_details_types</code> are only an upper bound (<a href="#connection-object" class="auto internal xref">Section 5.6</a>). The authoritative, fine-grained requirements come from the service, and their granularity differs by service type. An <code>http</code> service described by OpenAPI exposes operations with per-operation <code>security</code> and required scopes; an <code>mcp</code> service exposes tools enumerated at runtime, where scopes are typically server-wide (via the server's Protected Resource Metadata <span>[<a href="#RFC9728" class="cite xref">RFC9728</a>]</span>) rather than per-tool; an <code>a2a</code> service exposes skills described in its Agent Card. A client maps its intended operations, tools, or skills to the minimal scopes and authorization details it must request. Two consequences follow. First, because an <code>mcp</code> service's scopes are typically server-wide, it can usually be scoped only at server granularity: a task that needs less than the whole server's access cannot, in general, be expressed for <code>mcp</code> through scopes. Second, turning an advertised <code>authorization_details</code> type into a minimal request requires that type's schema, which the authorization server provides only if it publishes Authorization Details Types Metadata <span>[<a href="#RAR-METADATA" class="cite xref">RAR-METADATA</a>]</span>. Absent that, the client knows only the type identifier and typically falls back to <code>scopes</code>.<a href="#section-7-3.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-7-3.3">
           <p id="section-7-3.3.1">For a multi-step goal spanning operations or services, a client <span class="bcp14">MAY</span> use a workflow description such as Arazzo <span>[<a href="#ARAZZO" class="cite xref">ARAZZO</a>]</span> to plan the sequence before acquiring any token.<a href="#section-7-3.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-7-4">Second, a client can connect with minimal access to enumerate, then request what is needed. When an agent must inspect the user's actual resources before planning (for example, to list the user's mailboxes or calendars), it <span class="bcp14">SHOULD</span> select a connection and request the least-privilege access sufficient to enumerate, such as narrow <code>scopes</code>, or a minimal <code>authorization_details</code> request limited to the <code>authorization_details_types</code> the connection advertises (<a href="#connection-object" class="auto internal xref">Section 5.6</a>), and then make a further, intent-scoped request for the access it determines it needs.<a href="#section-7-4" class="pilcrow">¶</a></p>
+<p id="section-7-4">Second, a client can connect with minimal access to enumerate, then request what is needed. When an agent must inspect the user's actual resources before planning (for example, to list the user's mailboxes or calendars), it <span class="bcp14">SHOULD</span> select a connection and request the least-privilege access sufficient to enumerate, such as narrow <code>scopes</code>, or a minimal <code>authorization_details</code> request limited to the <code>authorization_details_types</code> the connection advertises (<a href="#connection-object" class="auto internal xref">Section 5.6</a>), and then make a further, intent-scoped request for the access it determines it needs. Whether such narrowing is honored, and whether the later request can add access without repeating prior consent, depend on the authorization server and are not advertised in the catalog. The client therefore cannot assume least-privilege narrowing or silent escalation, and <span class="bcp14">SHOULD</span> be prepared for either a single sufficient request or a fresh consent.<a href="#section-7-4" class="pilcrow">¶</a></p>
 <p id="section-7-5">Incremental, intent-scoped requests keep each token least-privilege. To support them:<a href="#section-7-5" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-7-6.1">
@@ -3041,6 +3041,9 @@ Cache-Control: private, max-age=60
 </li>
         <li class="normal" id="appendix-A-2.7">
           <p id="appendix-A-2.7.1">Added the <code>proxy_injected</code> connection type for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.<a href="#appendix-A-2.7.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-2.8">
+          <p id="appendix-A-2.8.1">Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (which the client derives from the service descriptor and RAR type metadata), and <code>mcp</code> services are generally scopable only at server granularity.<a href="#appendix-A-2.8.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 <p id="appendix-A-3">-00<a href="#appendix-A-3" class="pilcrow">¶</a></p>

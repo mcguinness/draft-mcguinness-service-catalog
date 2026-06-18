@@ -4,8 +4,8 @@
 
 Network Working Group                                      K. McGuinness
 Internet-Draft                                               Independent
-Intended status: Standards Track                            17 June 2026
-Expires: 19 December 2026
+Intended status: Standards Track                            18 June 2026
+Expires: 20 December 2026
 
 
                 Per-User Service Connectivity Discovery
@@ -46,7 +46,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 19 December 2026.
+   This Internet-Draft will expire on 20 December 2026.
 
 Copyright Notice
 
@@ -1535,8 +1535,14 @@ Table of Contents
 
    An agent typically uses the catalog to plan: it discovers the
    services a user can reach, decides which it needs for the user's
-   goal, and requests only the access that goal requires.  The catalog
-   supports planning before commitment in two ways.
+   goal, and requests only the access that goal requires.  The catalog's
+   role here is bounded.  It provides the candidate services (filterable
+   by category and tags) and, per connection, an upper bound on the
+   available access (Section 5.6).  It does not compute the minimal
+   access a given task needs: mapping an intent to the least-privilege
+   request is the client's job, using the service's descriptor and, for
+   Rich Authorization Requests, the type metadata referenced below.  The
+   catalog supports planning before commitment in two ways.
 
    First, a client can plan from descriptors without connecting:
 
@@ -1557,7 +1563,16 @@ Table of Contents
       Metadata [RFC9728]) rather than per-tool; an a2a service exposes
       skills described in its Agent Card.  A client maps its intended
       operations, tools, or skills to the minimal scopes and
-      authorization details it must request.
+      authorization details it must request.  Two consequences follow.
+      First, because an mcp service's scopes are typically server-wide,
+      it can usually be scoped only at server granularity: a task that
+      needs less than the whole server's access cannot, in general, be
+      expressed for mcp through scopes.  Second, turning an advertised
+      authorization_details type into a minimal request requires that
+      type's schema, which the authorization server provides only if it
+      publishes Authorization Details Types Metadata [RAR-METADATA].
+      Absent that, the client knows only the type identifier and
+      typically falls back to scopes.
 
    *  For a multi-step goal spanning operations or services, a client
       MAY use a workflow description such as Arazzo [ARAZZO] to plan the
@@ -1571,7 +1586,12 @@ Table of Contents
    minimal authorization_details request limited to the
    authorization_details_types the connection advertises (Section 5.6),
    and then make a further, intent-scoped request for the access it
-   determines it needs.
+   determines it needs.  Whether such narrowing is honored, and whether
+   the later request can add access without repeating prior consent,
+   depend on the authorization server and are not advertised in the
+   catalog.  The client therefore cannot assume least-privilege
+   narrowing or silent escalation, and SHOULD be prepared for either a
+   single sufficient request or a fresh consent.
 
    Incremental, intent-scoped requests keep each token least-privilege.
    To support them:
@@ -2168,6 +2188,12 @@ Document History
    *  Added the proxy_injected connection type for the agent-holds-zero-
       secrets model, where a trusted intermediary attaches the
       credential on egress.
+
+   *  Reframed the intent section: the catalog provides candidate
+      services and an access ceiling, not the intent-to-minimal-grant
+      mapping (which the client derives from the service descriptor and
+      RAR type metadata), and mcp services are generally scopable only
+      at server granularity.
 
    -00
 
