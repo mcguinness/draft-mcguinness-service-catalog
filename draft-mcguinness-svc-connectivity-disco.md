@@ -40,6 +40,7 @@ normative:
   RFC9110:
   RFC9111:
   RFC9396:
+  RFC9449:
   RFC9457:
   RFC9728:
 
@@ -49,7 +50,6 @@ informative:
   RFC8693:
   RFC9126:
   RFC9207:
-  RFC9449:
   RFC9470:
   RFC9635:
   RAR-METADATA:
@@ -177,7 +177,7 @@ Service:
 : Something a client can call on behalf of the user, such as an HTTP API or an MCP server. A service has a service type (see {{service-types}}).
 
 Connection Method:
-: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `profile` and, where needed, a profile-specific `type` (how the credential is obtained; see {{connection-profiles}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition profile. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
+: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: acquisition (how the credential is obtained, given by the `profile` and, where needed, a profile-specific `type`; see {{connection-profiles}}) and presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition profile. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
 
 All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC3986}} unless otherwise stated.
 
@@ -550,7 +550,9 @@ client_registration:
 
 The OAuth values in a connection object (`authorization_server`, `resource`, `scopes`, and `authorization_details_types`) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata {{RFC9728}}, the authorization server metadata {{RFC8414}}, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:
 
-* Before using an OAuth connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). When the connection omits `resource`, the client first derives the protected resource identifier as described above. If the client cannot determine and validate the protected resource, it MUST NOT use the connection. This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
+* Before using an OAuth connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). When the connection omits `resource`, the client first derives the protected resource identifier as described above. If the client cannot determine and validate the protected resource, it MUST NOT use the connection, unless the connection identifies its target solely by an authorization-server-local `audience` (the `token_exchange` and `id_jag` types), for which the alternative anchor in the next bullet applies. This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
+
+* When an OAuth connection has no `resource` and identifies its target solely by an authorization-server-local `audience` (`token_exchange` ({{type-token-exchange}}) or `id_jag` ({{type-id-jag}})), there is no Protected Resource Metadata to anchor against, and resource re-anchoring does not apply. The trust anchor is instead the connection's `authorization_server`, which issues and audience-restricts the resulting token. Because executing such a connection discloses a credential to that authorization server (a `subject_token` for `token_exchange`, an assertion for `id_jag`), the client MUST NOT present it unless it independently trusts that authorization server to receive it: for example, because the authorization server is the issuer of the presented token or the user's identity provider, or is permitted by a trust policy or explicit configuration ({{confused-deputy}}). Having obtained a token, the client SHOULD confirm it is bound to the intended service before using it ({{type-token-exchange}}).
 
 * Re-anchoring confirms that the `authorization_server` is authoritative for the `resource`. It does not establish that the `resource` (or `base_uri`) is the service the user intended, since a compromised provider could supply a `resource` whose Protected Resource Metadata is self-consistent. For a `consent_required` service with which the user has no prior relationship, the client MUST independently confirm the resource (for example, by user confirmation or an origin allowlist) before sending credentials.
 
@@ -571,7 +573,7 @@ The client obtains a token by performing an OAuth 2.0 Token Exchange {{RFC8693}}
 Type-specific members:
 
 audience:
-: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI. It MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant. The tenant's descriptive identity is the service object's `tenant` member. Unlike `token_endpoint`, the `audience` selector has no independent metadata to validate against. It is a catalog-supplied value the client trusts to the extent it trusts the Catalog Provider, bounded by the re-anchored `authorization_server`, which issues and audience-restricts the resulting token. A client SHOULD confirm that the token it receives is bound to the intended service before using it.
+: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI. It MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant. The tenant's descriptive identity is the service object's `tenant` member. Unlike `token_endpoint`, the `audience` selector has no independent metadata to validate against. It is a catalog-supplied value the client trusts to the extent it trusts the Catalog Provider, bounded by the trusted `authorization_server` ({{profile-oauth}}), which issues and audience-restricts the resulting token. A client SHOULD confirm that the token it receives is bound to the intended service before using it.
 
 supported_token_types:
 : OPTIONAL. An array of token type URIs {{RFC8693}} that may be requested. If omitted, the client may request any token type the authorization server supports.
@@ -616,7 +618,7 @@ When the client routes through an explicit `endpoint`, the connection's `present
 
 ### Public Service Profile {#profile-none}
 
-The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`.
+The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`. Although no credential is presented, the client still sends requests, and possibly user data, to the service's `base_uri`. As with the other non-`oauth` profiles, the client MUST establish the service's identity from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone, before sending any user data.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
@@ -1041,6 +1043,9 @@ Reference: This document.
 * Clarified multi-account silent acquisition, the `audience` selector's trust basis, `client_credentials` status, `base_uri` vs `resource`, and the status default caution. Dropped the decorative `version` member.
 * Added the `proxy_injected` connection profile for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.
 * Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (which the client derives from the service descriptor and RAR type metadata), and `mcp` services are generally scopable only at server granularity.
+* Resolved the re-anchoring contradiction for audience-only `token_exchange`/`id_jag` connections (no `resource`/Protected Resource Metadata): defined an alternative trust anchor on the `authorization_server` rather than requiring resource re-anchoring those connections cannot satisfy.
+* Required `none`-profile clients to establish service identity from a trusted source before sending user data, aligning it with the other non-`oauth` profiles.
+* Moved DPoP {{RFC9449}} to normative references (it is cited with a conditional MUST), and clarified the Connection Method definition's two-layer wording.
 
 -00
 
