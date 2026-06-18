@@ -594,13 +594,23 @@ Table of Contents
 
 4.3.1.  Authority for Inclusion
 
-   Inclusion of a service or connection method in the catalog is an
-   assertion by the Catalog Provider that the authenticated user and
-   client may use it.  The basis for that assertion is provider-defined
-   and may combine, for example, authorization server policy, enterprise
-   administrator policy, the user's account state, and the service
-   provider's registration state.  This document does not mandate a
-   particular basis.  The following constraints apply:
+   Authorization applies at two distinct levels, and the catalog speaks
+   only to the first:
+
+   *  Discoverability authorization: whether the Catalog Provider may
+      show this service and connection method to this user and client.
+      Inclusion in the catalog is the provider's assertion that it may.
+      The basis is provider-defined and may combine, for example,
+      authorization server policy, enterprise administrator policy, the
+      user's account state, and the service provider's registration
+      state; this document does not mandate a particular basis.
+
+   *  Runtime authorization: whether a given call will actually succeed.
+      This decision belongs to the service and its authorization server,
+      is made at call time, and is not delegated to the Catalog
+      Provider.
+
+   The following constraints follow:
 
    *  A Catalog Provider MUST include only services and connection
       methods the user and client are permitted to discover and use, to
@@ -610,14 +620,15 @@ Table of Contents
       call, but only by marking every connection method for that service
       as unavailable (Section 4.3.2).
 
-   *  Inclusion is a point-in-time assertion, not a guarantee that a
-      call will succeed (Section 4.3.2).  The authoritative
-      authorization decision remains with the service and its
+   *  Discoverability authorization is a point-in-time assertion, not a
+      guarantee of runtime authorization (Section 4.3.2).  The
+      authoritative decision remains with the service and its
       authorization server.
 
-   *  A client MUST NOT treat inclusion as authorization in itself.  It
-      still applies the selected profile's trust requirements and
-      obtains a credential through the normal flow (Section 5.7).
+   *  A client MUST NOT treat inclusion (discoverability authorization)
+      as runtime authorization.  It still applies the selected profile's
+      trust requirements and obtains a credential through the normal
+      flow (Section 5.7).
 
 4.3.2.  Service Availability and Status
 
@@ -1071,14 +1082,17 @@ Table of Contents
       cannot confirm as requiring verification before relying on it.
       One of:
 
-      *  connected: The Catalog Provider knows of an existing user-
-         service relationship or credential grant (for example, a prior
-         authorization, an account link, or a stored token).  This
-         indicates a relationship exists, not that a valid credential is
-         in hand: the client may still need to obtain or refresh a
-         token, and the relationship MAY be stale (expired or revoked),
-         so a client MUST still handle an authentication failure at call
-         time.
+      *  connected: The Catalog Provider believes an account or linkage
+         exists for this user (for example, a prior authorization, an
+         account link, or a stored token).  This is the provider's
+         assertion that a relationship exists.  It does not mean a valid
+         credential is in hand, that the service is the one the user
+         intended, or that calling is safe.  The client may still need
+         to obtain or refresh a token, the relationship MAY be stale
+         (expired or revoked), and the assertion is only as trustworthy
+         as the provider, so connected alone does not waive the resource
+         confirmation and trust checks of Section 5.7.1.  A client MUST
+         still handle an authentication failure at call time.
 
       *  available: The client can obtain a credential using this method
          without further user interaction (for example, a token exchange
@@ -2630,6 +2644,15 @@ Document History
       connecting to an unfamiliar service needs a trust anchor; and made
       the overview's trust step profile-generic (re-anchoring as the
       oauth instance) and ordered it after connection selection.
+
+   *  Tightened the trust model around connected: the status definition
+      now states it is the provider's assertion that an account or
+      linkage exists, not that a credential is in hand, the service is
+      the intended one, or calling is safe, and that it does not waive
+      the Section 5.7.1 checks.  Reframed Authority for Inclusion as two
+      explicit levels, discoverability authorization (what the catalog
+      asserts) versus runtime authorization (the service and
+      authorization server's decision at call time).
 
    *  Follow-up review cleanups: noted that client_registration values
       are extended by specifications updating the oauth profile and that
