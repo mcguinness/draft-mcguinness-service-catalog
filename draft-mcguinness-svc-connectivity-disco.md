@@ -131,7 +131,7 @@ It is useful to see this as the reachability analogue of OAuth 2.0 Authorization
 The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
 
 * **Discovery**: which services are reachable for this user and client.
-* **Acquisition**: how a credential is obtained (the connection `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, credential injection by a trusted intermediary, or none).
+* **Acquisition**: how a credential is obtained (the connection `profile`, and any profile-specific `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, credential injection by a trusted intermediary, or none).
 * **Presentation**: how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
 
 Discovery is the catalog's own role. Acquisition and presentation are the two layers carried by each connection method ({{connection-object}}). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism. OAuth 2.0 is not assumed.
@@ -146,7 +146,7 @@ Beyond this, the design is deliberately general:
 
 * **Intent-based planning.** An agent can read the catalog, and the descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
 
-Service types, categories, link relations, and connection types are each extensible through an IANA registry, so the model grows without new protocols.
+Service types, categories, link relations, connection profiles, and profile-specific connection types are each extensible through IANA registries, so the model grows without new protocols.
 
 ## Why Agents Need This
 
@@ -159,7 +159,7 @@ The catalog is deliberately narrow. It is **not**:
 * authoritative API or capability metadata: that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates ({{related-work}});
 * a token issuance or grant protocol: it describes how to use existing mechanisms and issues no credential itself ({{connecting}});
 * proof of current authorization: a listed service, or a connection's `connected` status, does not guarantee a subsequent call will succeed ({{availability}});
-* a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata: those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting ({{authoritative}}).
+* a substitute for OAuth 2.0 Protected Resource Metadata or Authorization Server Metadata: those remain the authoritative source for endpoints and policy, and a client re-anchors to them before acting when using the `oauth` profile ({{profile-oauth}}).
 
 # Conventions and Definitions
 
@@ -177,11 +177,11 @@ Service:
 : Something a client can call on behalf of the user, such as an HTTP API or an MCP server. A service has a service type (see {{service-types}}).
 
 Connection Method:
-: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `type` (how the credential is obtained; see {{connection-type-registry}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition type. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
+: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: an acquisition `profile` and, where needed, a profile-specific `type` (how the credential is obtained; see {{connection-profiles}}) and a presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition profile. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
 
 All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC3986}} unless otherwise stated.
 
-In this document, the *catalog* (the returned document) and the *Service Catalog Endpoint* are the concrete artifacts. *Service connectivity discovery* is the protocol this document defines.
+In this document, the *catalog* (the returned document) and the *Service Catalog Endpoint* are the concrete artifacts. *Service connectivity discovery* is the protocol this document defines. A client that encounters an unknown service type MAY retain and display the service object, but cannot assume service-type-specific behavior for it. A client that encounters an unknown connection profile MUST NOT attempt to execute that connection method unless it implements the specification that defines the profile.
 
 # Overview {#processing-model}
 
@@ -205,10 +205,10 @@ The Service Catalog Endpoint is anchored to the user's identity provider: the OA
 
 1. Determine the issuer. When the client has completed an OpenID Connect sign-in, the issuer is the `iss` value of the ID token. When the client starts from only a user identifier (for example, an `acct:` URI) and has not yet signed in, it MAY use WebFinger {{RFC7033}} to resolve the issuer, using the relation type `http://openid.net/specs/connect/1.0/issuer`, and then sign in. WebFinger is used only to resolve the issuer. It MUST NOT be used to convey the catalog endpoint or its contents (see {{privacy-considerations}}).
 
-2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}), having verified that the metadata `issuer` matches the expected issuer.
+2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}), having verified that the metadata `issuer` matches the expected issuer. The metadata value is a JSON string containing an absolute HTTPS URL with no fragment component.
 
     * The metadata value is the primary, RECOMMENDED mechanism. The client SHOULD prefer it when present.
-    * If the metadata omits `service_catalog_endpoint`, a provider co-located with the issuer MAY serve the endpoint at `{issuer}/.well-known/service-catalog` {{RFC8615}} (see {{iana-well-known}}). This fallback is an optional deployment convenience, not a requirement.
+    * If the metadata omits `service_catalog_endpoint`, a provider co-located with the issuer MAY serve the endpoint at the well-known URI `/.well-known/service-catalog` using the issuer's scheme, host, and port {{RFC8615}} (see {{iana-well-known}}). This fallback is an optional deployment convenience, not a requirement. If the issuer identifier contains a path component, clients SHOULD use issuer metadata or explicit configuration rather than infer a path-relative catalog URL.
     * A client MUST NOT treat a catalog at an origin different from the issuer as authoritative for the issuer's users on the basis of URL structure alone. Cross-origin authority requires the metadata value or explicit configuration.
 
 3. Retrieve the catalog. The client sends an authenticated request to the endpoint with the user's access token ({{catalog-request}}). The catalog is scoped to the user identified by the access token, not by the endpoint URL.
@@ -217,7 +217,7 @@ A client MAY instead be configured directly with the absolute URL of a Service C
 
 ## Catalog Request {#catalog-request}
 
-The client retrieves the catalog by sending an HTTP `GET` request to the Service Catalog Endpoint.
+The client retrieves the catalog by sending an HTTP `GET` request to the Service Catalog Endpoint. A client SHOULD send an `Accept` header field that includes `application/service-catalog+json`. If the request's `Accept` header field excludes `application/service-catalog+json`, the Catalog Provider MAY reject the request with HTTP 406 (Not Acceptable).
 
 The client MUST authenticate the request. The Catalog Provider determines the user on whose behalf the catalog is produced from the request credentials. The following requirements apply:
 
@@ -233,7 +233,7 @@ The following is an example request for the user's email services:
     GET /.well-known/service-catalog?category=email HTTP/1.1
     Host: catalog.example.com
     Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
-    Accept: application/json
+    Accept: application/service-catalog+json
 
 ### Filtering {#filtering}
 
@@ -248,6 +248,9 @@ type:
 status:
 : A connection status value (see {{connection-object}}): `connected`, `available`, `consent_required`, or `unavailable`. Only services that have at least one connection method with the given status are returned. MAY be repeated (OR). For example, `status=connected&status=available` returns services the client can use without user interaction.
 
+profile:
+: A connection profile value (see {{connection-profiles}}), such as `oauth` or `proxy_injected`. Only services that have at least one connection method with the given profile are returned. MAY be repeated (OR). This lets a client limit results to connection profiles it implements.
+
 tag:
 : A free-form tag value (see the `tags` member in {{service-object}}). Only services that carry the given tag are returned. MAY be repeated. When repeated, a service is returned only if it carries all of the given tags (AND).
 
@@ -257,9 +260,9 @@ id:
 q:
 : A free-text search string. The Catalog Provider MAY use this value to match services by name, description, or other provider-defined criteria.
 
-Filtering selects whole service objects. The `connections` array of a returned service is not pruned to the connections that matched. A `status` filter is evaluated against each connection's effective status, the default `available` when `status` is omitted (see {{connection-object}}).
+Filtering selects whole service objects. The `connections` array of a returned service is not pruned to the connections that matched. A `status` or `profile` filter is evaluated against each connection's effective status or profile; the effective status is the default `available` when `status` is omitted (see {{connection-object}}).
 
-A Catalog Provider SHOULD support the `category`, `type`, and `id` filters. Support for the other filters is OPTIONAL. A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, and `id` filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page. Because an unsupported optional filter is ignored rather than rejected, a client MUST NOT assume such a filter was applied and SHOULD apply its own filtering to the result as needed.
+A Catalog Provider SHOULD support the `category`, `type`, `profile`, and `id` filters. Support for the other filters is OPTIONAL. A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, `profile`, and `id` filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page. Because an unsupported optional filter is ignored rather than rejected, a client MUST NOT assume such a filter was applied and SHOULD apply its own filtering to the result as needed.
 
 ### Pagination {#pagination}
 
@@ -280,11 +283,11 @@ The following example requests the next page using a cursor from a previous resp
     GET /.well-known/service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
     Host: catalog.example.com
     Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
-    Accept: application/json
+    Accept: application/service-catalog+json
 
 ## Catalog Response {#catalog-response}
 
-If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON {{RFC8259}} object, the **catalog object** ({{catalog-object}}). The `Content-Type` of the response MUST be `application/service-catalog+json` ({{iana-media-type}}). The media type suffix `+json` allows generic JSON tooling to process it. A JSON Schema for the catalog object is published with this specification, and the catalog object MAY carry a `$schema` member referencing it, so that clients can validate responses and generate types. A complete example appears in {{response-example}}.
+If the request is valid and authenticated, the Catalog Provider returns an HTTP 200 (OK) response whose body is a JSON {{RFC8259}} object, the **catalog object** ({{catalog-object}}). The `Content-Type` of the response MUST be `application/service-catalog+json` ({{iana-media-type}}). The media type suffix `+json` allows generic JSON tooling to process it. A JSON Schema for the catalog object MAY be published with this specification, and the catalog object MAY carry a `$schema` member referencing it, so that clients can validate responses and generate types. A complete example appears in {{response-example}}.
 
 The Catalog Provider MUST evaluate the authenticated user's permissions, and the calling client's permissions, when constructing the catalog. The catalog MUST contain only services, and connection methods, that the user and client are permitted to use. The specific authorization policy evaluation is implementation specific. When constructing the response, the Catalog Provider MUST omit any member that would otherwise contain an empty string, an empty array, or a null value. The REQUIRED `services` member is the sole exception: it is always present, and is an empty array when no services are available.
 
@@ -294,9 +297,9 @@ The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}
 
 Inclusion of a service or connection method in the catalog is an assertion by the Catalog Provider that the authenticated user and client may use it. The basis for that assertion is provider-defined and may combine, for example, authorization server policy, enterprise administrator policy, the user's account state, and the service provider's registration state. This document does not mandate a particular basis. The following constraints apply:
 
-* A Catalog Provider MUST include only services and connection methods the user and client are permitted to use, to the best of the provider's knowledge. It MUST NOT pad the catalog with services the user cannot use, except to mark them `unavailable` ({{availability}}).
+* A Catalog Provider MUST include only services and connection methods the user and client are permitted to discover and use, to the best of the provider's knowledge. It MUST NOT pad the catalog with services the user is not permitted to discover. It MAY include a discoverable service that the user cannot currently call, but only by marking every connection method for that service as `unavailable` ({{availability}}).
 * Inclusion is a point-in-time assertion, not a guarantee that a call will succeed ({{availability}}). The authoritative authorization decision remains with the service and its authorization server.
-* A client MUST NOT treat inclusion as authorization in itself. It still re-anchors to the resource and obtains a credential through the normal flow ({{authoritative}}).
+* A client MUST NOT treat inclusion as authorization in itself. It still applies the selected profile's trust requirements and obtains a credential through the normal flow ({{connection-profiles}}).
 
 ### Service Availability and Status {#availability}
 
@@ -318,6 +321,7 @@ If the request fails, the Catalog Provider returns an HTTP error response. The r
 * 401 (Unauthorized): authentication is required and was missing or invalid. The Catalog Provider MUST include a `WWW-Authenticate` header field {{RFC6750}} indicating how to authenticate.
 * 403 (Forbidden): the authenticated client is not authorized to use the catalog endpoint.
 * 400 (Bad Request): the request is malformed, or includes an invalid or expired `cursor` (see {{pagination}}).
+* 406 (Not Acceptable): the request's `Accept` header field excludes the catalog media type.
 * 429 (Too Many Requests): the client has exceeded a rate limit (see {{information-disclosure}}). The Catalog Provider SHOULD include a `Retry-After` header field.
 * 503 (Service Unavailable): the Catalog Provider is temporarily unable to handle the request.
 
@@ -337,7 +341,7 @@ The following is an example error response:
 
 # Catalog Data Model
 
-This section defines the JSON objects returned by the endpoint: the catalog object and the service, link, and connection objects it contains, together with the service-type, category, and connection-type vocabularies. Worked examples follow in {{response-example}}.
+This section defines the JSON objects returned by the endpoint: the catalog object and the service, link, and connection objects it contains, together with the service-type, category, connection-profile, and profile-specific connection-type vocabularies. Worked examples follow in {{response-example}}.
 
 ## Catalog Object {#catalog-object}
 
@@ -435,7 +439,7 @@ transport:
 server_card_uri:
 : OPTIONAL. A URI giving the location of the server's MCP Server Card {{MCP-SERVER-CARD}}.
 
-Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `mcp` service typically offers OAuth-based connection methods (for example, `authorization_code` or `token_exchange`). Service type and connection type are independent. As for any OAuth service, the client re-anchors to the server's Protected Resource Metadata before acting ({{connection-object}}). The location and format of the MCP Server Card are defined by {{MCP-SERVER-CARD}}. This document does not define them, and a Catalog Provider references the card by URL.
+Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `mcp` service typically offers the `oauth` connection profile (for example, with `type` `authorization_code` or `token_exchange`). Service type and connection profile are independent. As for any OAuth service, the client re-anchors to the server's Protected Resource Metadata before acting ({{profile-oauth}}). The location and format of the MCP Server Card are defined by {{MCP-SERVER-CARD}}. This document does not define them, and a Catalog Provider references the card by URL.
 
 ### a2a {#type-a2a}
 
@@ -449,7 +453,7 @@ transport:
 agent_card_uri:
 : OPTIONAL. A URI giving the location of the agent's A2A Agent Card (typically at `/.well-known/agent-card.json`).
 
-As with `mcp`, service type and connection type are independent. An `a2a` agent describes how callers authenticate to it in its Agent Card, which the catalog references rather than restates.
+As with `mcp`, service type and connection profile are independent. An `a2a` agent describes how callers authenticate to it in its Agent Card, which the catalog references rather than restates.
 
 ## Service Categories {#service-categories}
 
@@ -475,49 +479,26 @@ title:
 
 A connection object describes one connection method for a service, separating two layers: how the client *acquires* a credential and how it *presents* that credential when calling the service. A connection object MUST carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.
 
-Every connection object has a `type`:
+This document defines the core catalog protocol and several initial connection profiles in one specification. The core catalog is independent of any credential acquisition mechanism. A connection profile defines the profile-specific members, processing rules, and security considerations for one family of connection methods. Future specifications may define additional profiles or update the profiles defined here.
+
+Every connection object has a `profile`:
+
+profile:
+: REQUIRED. A string giving the connection profile, drawn from the "Service Catalog Connection Profile" registry ({{connection-profile-registry}}). This document defines `oauth`, `pre_authorized`, `proxy_injected`, and `none`. A client that encounters an unknown profile MUST NOT execute that connection method unless it implements the specification that defines the profile.
 
 type:
-: REQUIRED. A string giving the credential acquisition method, drawn from the "Service Catalog Connection Type" registry ({{connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, `id_jag`, `pre_authorized`, `proxy_injected`, and `none`.
-
-**Acquisition members.** The following members carry the OAuth 2.0 values for connection methods that obtain a token from an OAuth 2.0 authorization server (`token_exchange`, `authorization_code`, `client_credentials`, and `id_jag`). They are carried on the connection object, rather than inherited from the service object or other catalog entries, so each connection is interpreted on its own.
-
-authorization_server:
-: REQUIRED for the OAuth-based connection types. A URI giving the issuer identifier {{RFC8414}} of the authorization server to use for this connection. The client obtains the authorization server's endpoints and capabilities from its metadata {{RFC8414}}.
-
-token_endpoint:
-: OPTIONAL. A URI giving the authorization server's token endpoint, provided as an optimization. Before using it, the client MUST verify it matches the `token_endpoint` in the validated metadata {{RFC8414}} of the connection's `authorization_server`. The client MUST NOT send a credential (such as a token exchange `subject_token`) to a `token_endpoint` it has not verified against that metadata. When absent, the client obtains the token endpoint from the authorization server metadata.
-
-resource:
-: OPTIONAL. A URI giving the resource indicator {{RFC8707}} the client includes when requesting a token for this connection, as a canonical URI per {{Section 2 of RFC8707}}. This identifies the protected resource and corresponds to the resource described by a Protected Resource Metadata document {{RFC9728}}, which MAY be referenced by a `describedby` link ({{link-object}}).
-
-scopes:
-: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} available to this connection. This is a coarse, planning-time hint and an upper bound: it lists scopes the user and client may request, not what any particular operation requires. Operation-level scope requirements come from the service's descriptor (for example, an OpenAPI {{OPENAPI}} document) and are enforced by the authorization server. A client SHOULD request the least privilege its task requires rather than the full set.
-
-authorization_details_types:
-: OPTIONAL. An array of OAuth 2.0 Rich Authorization Requests {{RFC9396}} `authorization_details` type identifiers (strings) that this connection accepts for this user, enabling fine-grained, intent-scoped access requests independently of `scopes`. Like `scopes`, this is a planning-time hint and an upper bound, not a per-operation requirement. It is the per-service, per-user counterpart to the server-wide `authorization_details_types_supported` metadata of {{RFC9396}}: it tells the client which types are usable here, while the schema, documentation, and examples for each type are obtained from the authorization server's Authorization Details Types Metadata {{RAR-METADATA}} (discovered via this connection's `authorization_server`) rather than restated in the catalog.
-
-client_id:
-: OPTIONAL. A string giving a static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
-
-client_registration:
-: OPTIONAL. A string describing how the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
-
-**Presentation members.** The following members describe how the acquired credential is presented when calling the service.
+: OPTIONAL. A profile-specific string identifying the credential acquisition method within the selected profile. The `oauth` profile requires this member and defines its values in the "OAuth Service Catalog Connection Type" registry ({{oauth-connection-type-registry}}). Profiles that define only one acquisition method can omit `type`.
 
 present:
-: OPTIONAL. A JSON object describing how the client presents its credential (the service-authentication layer, distinct from the acquisition `type`). Its value is a Security Scheme Object as defined in OpenAPI 3.1 or later {{OPENAPI}}, the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}}. Because it is a verbatim OpenAPI object, its member names follow OpenAPI conventions (for example, `mutualTLS`, `apiKey`) rather than the snake_case used elsewhere in this document, and a client or SDK MUST NOT alter their casing (for example, MUST NOT snake_case-normalize them). The following apply:
+: OPTIONAL. A JSON object describing how the client presents its credential (the service-authentication layer, distinct from credential acquisition). Its value is a Security Scheme Object as defined in OpenAPI 3.1 or later {{OPENAPI}}, the same model used by OpenAPI `securitySchemes` and A2A Agent Cards {{A2A}}. Because it is a verbatim OpenAPI object, its member names follow OpenAPI conventions (for example, `mutualTLS`, `apiKey`) rather than the snake_case used elsewhere in this document, and a client or SDK MUST NOT alter their casing (for example, MUST NOT snake_case-normalize them). The following apply:
 
-    * Allowed types: the value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS`, for example `{"type": "http", "scheme": "bearer"}`, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}`, or `{"type": "mutualTLS"}`. The `oauth2` and `openIdConnect` types MUST NOT appear, because credential acquisition (including OAuth flows) is expressed by the `type` member.
-    * When omitted: presentation is resolved using the precedence order defined under `security_scheme` below.
+    * Allowed types: the value MUST be of OpenAPI type `http`, `apiKey`, or `mutualTLS`, for example `{"type": "http", "scheme": "bearer"}`, `{"type": "apiKey", "in": "header", "name": "X-API-Key"}`, or `{"type": "mutualTLS"}`. The `oauth2` and `openIdConnect` types MUST NOT appear, because credential acquisition (including OAuth flows) is expressed by the connection profile and, where applicable, `type`.
+    * When omitted: presentation is resolved by the selected profile. If the profile does not define a default, the client uses the service's referenced descriptor, such as an OpenAPI document, A2A Agent Card, or MCP Server Card.
     * No restatement: the catalog SHOULD NOT inline a `present` value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via `service-desc`, an A2A Agent Card, or an MCP Server Card); a client obtains those by reference ({{intent}}).
-    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) and neither `present` nor `security_scheme` is used. For `a2a` services, presentation follows the agent's Agent Card. For a `proxy_injected` connection ({{type-proxy-injected}}), `present` describes how the client authenticates to the intermediary, not to the service.
-    * Sender-constrained tokens: when the resource's Protected Resource Metadata {{RFC9728}} indicates DPoP-bound access tokens are required (`dpop_bound_access_tokens_required`), or the authorization server signals DPoP support, the client MUST present a DPoP-bound token {{RFC9449}} rather than a plain bearer token. This requirement is discovered from that metadata rather than restated in the catalog.
+    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) unless the selected connection profile says otherwise. For `a2a` services, presentation follows the agent's Agent Card. For a `proxy_injected` connection ({{profile-proxy-injected}}), `present` describes how the client authenticates to the intermediary, not to the service.
 
 security_scheme:
-: OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme. When the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes. Presentation is resolved in this order: (1) an explicit `present`; (2) the named `security_scheme` resolved against the service's referenced descriptor; (3) for OAuth-based acquisition types, an HTTP bearer token {{RFC6750}}; (4) otherwise, the security schemes published in the service's referenced descriptor.
-
-**Per-user state.** The following members convey this connection's state for the authenticated user.
+: OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme. When the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes.
 
 status:
 : OPTIONAL. A string giving the per-user state of this connection method. If omitted, the client SHOULD treat the status as `available`. Because this default is the most actionable value, "not computed" and "verified available" are indistinguishable. A Catalog Provider SHOULD therefore set `status` explicitly, and a security-conscious client MAY treat a connection whose status it cannot confirm as requiring verification before relying on it. One of:
@@ -532,53 +513,80 @@ status:
 account:
 : OPTIONAL. A JSON object identifying the account this connection is associated with, when the user holds (or can establish) more than one account at the service. An account is a distinct identity or subscription the user holds at the service, established through prior authorization or account linking. How accounts are established or linked is out of scope. The object has a REQUIRED `id` (an opaque, stable, provider-assigned identifier for the account), an OPTIONAL `label` (a human-readable name for display, such as "Work"; it MAY be personal data, see {{privacy-considerations}}), and an OPTIONAL `login_hint` (a value the client passes as the OpenID Connect `login_hint` parameter to steer an interactive authorization to this account).
 
-    Two connection objects of the same `type` that differ only by `account` represent two distinct accounts, for example, two `connected` mailboxes. A connection with no `account` represents establishing a new account, or an account the provider does not distinguish.
+    Two connection objects of the same `profile` and `type` that differ only by `account` represent two distinct accounts, for example, two `connected` mailboxes. A connection with no `account` represents establishing a new account, or an account the provider does not distinguish.
 
-    The account is honored differently per acquisition type. For interactive acquisition (`authorization_code`), the client SHOULD pass the account's `login_hint`, or otherwise rely on the authorization server's account selection, to obtain a token for that account. For silent acquisition (`token_exchange`, `id_jag`), the account is determined by the identity of the subject token (or assertion) the client presents. Selecting a `connected` account therefore means using the subject token that corresponds to it. The opaque `id` is a correlation handle, not a token request parameter. The catalog does not, by itself, map an `account` to a particular subject token: for silent multi-account acquisition the client MUST determine that mapping out of band (for example, from the subjects of the subject tokens it already holds). A catalog that lists multiple `connected` accounts on a silent connection type is thus actionable only by a client that already holds the corresponding subject tokens.
+Profiles define additional profile-specific members, as described in {{connection-profiles}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
 
-Connection types define additional type-specific members, as described in {{connection-types}}. Extensions MAY define additional members of the connection object. Clients MUST ignore members they do not understand.
+## Connection Profiles {#connection-profiles}
 
-### Authoritative Sources and Re-Anchoring {#authoritative}
+This section defines the initial connection profiles. Each profile reuses the common connection object members from {{connection-object}} and defines any profile-specific members, processing rules, and security requirements.
+
+### OAuth Connection Profile {#profile-oauth}
+
+The `oauth` profile describes connection methods that obtain an access token from an OAuth 2.0 authorization server. An `oauth` connection object MUST include a `type` member whose value is drawn from the "OAuth Service Catalog Connection Type" registry ({{oauth-connection-type-registry}}). This document defines `token_exchange`, `authorization_code`, `client_credentials`, and `id_jag`.
+
+The following members are defined by the `oauth` profile. They are carried on the connection object, rather than inherited from the service object or other catalog entries, so each connection is interpreted on its own.
+
+authorization_server:
+: REQUIRED. A URI giving the issuer identifier {{RFC8414}} of the authorization server to use for this connection. The client obtains the authorization server's endpoints and capabilities from its metadata {{RFC8414}}.
+
+token_endpoint:
+: OPTIONAL. A URI giving the authorization server's token endpoint, provided as an optimization. Before using it, the client MUST verify it matches the `token_endpoint` in the validated metadata {{RFC8414}} of the connection's `authorization_server`. The client MUST NOT send a credential (such as a token exchange `subject_token`) to a `token_endpoint` it has not verified against that metadata. When absent, the client obtains the token endpoint from the authorization server metadata.
+
+resource:
+: OPTIONAL. A URI giving the resource indicator {{RFC8707}} the client includes when requesting a token for this connection, as a canonical URI per {{Section 2 of RFC8707}}. This identifies the protected resource and corresponds to the resource described by a Protected Resource Metadata document {{RFC9728}}, which MAY be referenced by a `describedby` link ({{link-object}}). An OAuth connection that can be executed directly SHOULD include `resource`. If `resource` is omitted, the client MUST derive the protected resource identifier from the service's authoritative metadata, descriptor, or challenge response before requesting a token, and MUST NOT treat the catalog's `authorization_server` alone as sufficient authority for the token request.
+
+scopes:
+: OPTIONAL. An array of OAuth 2.0 scope values {{Section 3.3 of RFC6749}} available to this connection. This is a coarse, planning-time hint and an upper bound: it lists scopes the user and client may request, not what any particular operation requires. Operation-level scope requirements come from the service's descriptor (for example, an OpenAPI {{OPENAPI}} document) and are enforced by the authorization server. A client SHOULD request the least privilege its task requires rather than the full set.
+
+authorization_details_types:
+: OPTIONAL. An array of OAuth 2.0 Rich Authorization Requests {{RFC9396}} `authorization_details` type identifiers (strings) that this connection accepts for this user, enabling fine-grained, intent-scoped access requests independently of `scopes`. Like `scopes`, this is a planning-time hint and an upper bound, not a per-operation requirement. It is the per-service, per-user counterpart to the server-wide `authorization_details_types_supported` metadata of {{RFC9396}}: it tells the client which types are usable here, while the schema, documentation, and examples for each type are obtained from the authorization server's Authorization Details Types Metadata {{RAR-METADATA}} (discovered via this connection's `authorization_server`) rather than restated in the catalog.
+
+client_id:
+: OPTIONAL. A string giving a static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
+
+client_registration:
+: OPTIONAL. A string describing how the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
 
 The OAuth values in a connection object (`authorization_server`, `resource`, `scopes`, and `authorization_details_types`) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata {{RFC9728}}, the authorization server metadata {{RFC8414}}, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:
 
-* Before using a connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
+* Before using an OAuth connection to obtain or present a token, a client MUST re-anchor trust to the resource it intends to call: it MUST confirm that the connection's `authorization_server` is listed in the Protected Resource Metadata {{RFC9728}} of the service's `resource` (for `mcp` services, through the standard MCP flow; see {{type-mcp}}). When the connection omits `resource`, the client first derives the protected resource identifier as described above. If the client cannot determine and validate the protected resource, it MUST NOT use the connection. This prevents a misconfigured or malicious catalog from directing the client to an attacker-controlled authorization server (see {{security-considerations}}).
 
 * Re-anchoring confirms that the `authorization_server` is authoritative for the `resource`. It does not establish that the `resource` (or `base_uri`) is the service the user intended, since a compromised provider could supply a `resource` whose Protected Resource Metadata is self-consistent. For a `consent_required` service with which the user has no prior relationship, the client MUST independently confirm the resource (for example, by user confirmation or an origin allowlist) before sending credentials.
 
-* Connection methods with no `authorization_server` (`pre_authorized`, `proxy_injected`, `none`, and any `present`-only API key or mutual TLS scheme) cannot be re-anchored this way, and re-anchoring provides them no protection. Before presenting a pre-provisioned credential to a service's `base_uri` (or routing through an intermediary for `proxy_injected`), the client MUST establish the binding between that `base_uri` (and the credential or intermediary) and the intended service from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone. Any sender-constraint requirement for such a connection (the DPoP case in {{connection-object}}) is likewise conveyed out of band, since there is no resource metadata to discover it from.
-
 * If a connection value conflicts with the authoritative metadata, the authoritative metadata takes precedence.
+
+* When the resource's Protected Resource Metadata {{RFC9728}} indicates DPoP-bound access tokens are required (`dpop_bound_access_tokens_required`), or the client otherwise selected a DPoP-bound token for the connection, the client MUST present the token using DPoP {{RFC9449}} rather than as a plain bearer token. DPoP requirements and support are discovered from resource and authorization server metadata rather than restated in the catalog.
 
 * To detect change cheaply, a client SHOULD use conditional requests against the catalog (see {{catalog-response}}). The catalog's `updated` time and entity tag indicate whether re-fetching is necessary.
 
+Presentation for the `oauth` profile is resolved in this order: (1) an explicit `present`; (2) the named `security_scheme` resolved against the service's referenced descriptor; (3) an HTTP bearer token {{RFC6750}}; (4) otherwise, the security schemes published in the service's referenced descriptor.
+
 The catalog's irreducible contribution is the user-scoped enumeration of which services and connection methods exist, and their per-user `status`, not the OAuth endpoints themselves, which remain owned by the authoritative metadata.
 
-## Connection Types {#connection-types}
-
-This section defines the initial credential acquisition types, the values of a connection's `type`. How the resulting credential is presented to the service is a separate layer, given by the connection's `present` member ({{connection-object}}). All reuse the common connection object members from {{connection-object}}. The members below are type specific.
-
-### token_exchange {#type-token-exchange}
+#### token_exchange {#type-token-exchange}
 
 The client obtains a token by performing an OAuth 2.0 Token Exchange {{RFC8693}} at the `authorization_server`. As the `subject_token` the client presents a token it already holds whose subject is the user, typically the access token it used to retrieve the catalog, or another user token the `authorization_server` is configured to accept for exchange. Whether this connection is truly silent (`status` of `available`) depends on the client possessing such an acceptable subject token. If it does not, the exchange will fail and the client must obtain a suitable token first. This is the catalog equivalent of {{TOKEN-EXCHANGE-DISCOVERY}}.
 
 Type-specific members:
 
 audience:
-: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI. It MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant. The tenant's descriptive identity is the service object's `tenant` member. Unlike `token_endpoint`, the `audience` selector has no independent metadata to validate against. It is a catalog-supplied value the client trusts to the extent it trusts the Catalog Provider, bounded by the re-anchored `authorization_server` ({{authoritative}}), which issues and audience-restricts the resulting token. A client SHOULD confirm that the token it receives is bound to the intended service before using it.
+: OPTIONAL. A string giving the `audience` value {{Section 2.1 of RFC8693}} to include in the token exchange request. The `audience` is the logical name of the target service and need not be a URI. It MAY be an opaque, authorization-server-local identifier. For a multi-tenant service, each tenant is a distinct service object (grouped by `group`; see {{service-object}}) whose connection carries a distinct `audience` value selecting that tenant. The tenant's descriptive identity is the service object's `tenant` member. Unlike `token_endpoint`, the `audience` selector has no independent metadata to validate against. It is a catalog-supplied value the client trusts to the extent it trusts the Catalog Provider, bounded by the re-anchored `authorization_server`, which issues and audience-restricts the resulting token. A client SHOULD confirm that the token it receives is bound to the intended service before using it.
 
 supported_token_types:
 : OPTIONAL. An array of token type URIs {{RFC8693}} that may be requested. If omitted, the client may request any token type the authorization server supports.
 
-### authorization_code {#type-authorization-code}
+#### authorization_code {#type-authorization-code}
 
 The client obtains a token using the OAuth 2.0 authorization code grant {{Section 4.1 of RFC6749}} with PKCE. This type typically has `status` of `consent_required`. The client uses the `authorization_server` metadata {{RFC8414}} to locate endpoints, includes the `resource` parameter {{RFC8707}}, and uses `client_id` or `client_registration` to determine its client identity. This type defines no additional members.
 
-### client_credentials {#type-client-credentials}
+For interactive acquisition, the client SHOULD pass the account's `login_hint`, or otherwise rely on the authorization server's account selection, to obtain a token for that account.
+
+#### client_credentials {#type-client-credentials}
 
 The client obtains a token using the OAuth 2.0 client credentials grant {{Section 4.4 of RFC6749}}, authenticating as itself. The resulting token carries no user identity. This type is appropriate only when the agent acts as itself and the service does not need the user's identity, and the catalog includes it because such a service may still be relevant to the user's task. Because the per-user `status` vocabulary does not apply cleanly, a `client_credentials` connection SHOULD use `status` `available` (reflecting the client's own access, not the user's). The values `connected` and `consent_required` do not apply. This type defines no additional members.
 
-### id_jag {#type-id-jag}
+#### id_jag {#type-id-jag}
 
 The client obtains an access token by redeeming an Identity Assertion Authorization Grant (ID-JAG) {{I-D.oauth-identity-assertion-authz-grant}} at the service's `authorization_server`. The client first obtains an ID-JAG for the user from the user's identity provider and then redeems it.
 
@@ -587,24 +595,28 @@ Type-specific members:
 audience:
 : OPTIONAL. A string giving the audience value identifying the service for which the ID-JAG is requested. For a multi-tenant service, the tenant is represented as in {{type-token-exchange}}: a distinct, grouped service object carrying the descriptive `tenant`, with the audience selecting it.
 
-### none {#type-none}
+For silent acquisition (`token_exchange`, `id_jag`), the account is determined by the identity of the subject token (or assertion) the client presents. Selecting a `connected` account therefore means using the subject token that corresponds to it. The opaque `account.id` is a correlation handle, not a token request parameter. The catalog does not, by itself, map an `account` to a particular subject token: for silent multi-account acquisition the client MUST determine that mapping out of band (for example, from the subjects of the subject tokens it already holds). A catalog that lists multiple `connected` accounts on a silent OAuth connection type is thus actionable only by a client that already holds the corresponding subject tokens.
 
-The service requires no client authentication (it is public). This type defines no additional members and typically has `status` of `available`.
+### Pre-Authorized Credential Profile {#profile-pre-authorized}
 
-### pre_authorized {#type-pre-authorized}
+The `pre_authorized` profile describes a credential the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning), never through the catalog. The catalog only signals that this method applies and, via the connection's `present` member ({{connection-object}}), how the credential is presented. It MUST NOT include the credential itself or any pointer that would let an unauthorized party retrieve it. This profile typically has `status` of `connected`.
 
-The credential is one the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning), never through the catalog. The catalog only signals that this method applies and, via the connection's `present` member ({{connection-object}}), how the credential is presented. It MUST NOT include the credential itself or any pointer that would let an unauthorized party retrieve it. This type typically has `status` of `connected`.
+Before presenting a pre-provisioned credential to a service's `base_uri`, the client MUST establish the binding between that `base_uri`, the credential, and the intended service from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone. Any sender-constraint requirement for such a connection is likewise conveyed out of band, since there is no OAuth protected resource metadata to discover it from.
 
-### proxy_injected {#type-proxy-injected}
+### Proxy-Injected Credential Profile {#profile-proxy-injected}
 
-The client never obtains or holds the service credential. A trusted intermediary (an egress proxy or gateway) attaches the credential to the client's requests to the service on the client's behalf. This is the agent-safer model in which a compromised client yields no long-lived service secret. It is compatible with the audience-binding and no-passthrough rules of {{audience-binding}}, which the intermediary (acting as the client to the service) observes.
+The `proxy_injected` profile describes a connection in which the client never obtains or holds the service credential. A trusted intermediary (an egress proxy or gateway) attaches the credential to the client's requests to the service on the client's behalf. This is the agent-safer model in which a compromised client yields no long-lived service secret. It is compatible with the audience-binding and no-passthrough rules of {{audience-binding}}, which the intermediary (acting as the client to the service) observes.
 
-Type-specific members:
+Profile-specific members:
 
 proxy:
 : OPTIONAL. A JSON object describing the intermediary. It MAY contain `endpoint` (a URI through which the client routes its requests to the service). When `endpoint` is absent, the intermediary operates transparently on the client's egress and is configured out of band.
 
-When the client routes through an explicit `endpoint`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service. The service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored ({{authoritative}}). The client MUST establish trust in the intermediary's `endpoint` and identity from a trusted source before routing requests through it.
+When the client routes through an explicit `endpoint`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service. The service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored using the OAuth profile's resource metadata checks. The client MUST establish trust in the intermediary's `endpoint` and identity from a trusted source before routing requests through it.
+
+### Public Service Profile {#profile-none}
+
+The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
@@ -638,6 +650,7 @@ The following is a non-normative example response showing four services: an HTTP
           ],
           "connections": [
             {
+              "profile": "oauth",
               "type": "token_exchange",
               "status": "available",
               "authorization_server": "https://as.example.com",
@@ -645,6 +658,7 @@ The following is a non-normative example response showing four services: an HTTP
               "scopes": ["mail.read", "mail.send"]
             },
             {
+              "profile": "oauth",
               "type": "authorization_code",
               "status": "consent_required",
               "authorization_server": "https://as.example.com",
@@ -668,6 +682,7 @@ The following is a non-normative example response showing four services: an HTTP
           ],
           "connections": [
             {
+              "profile": "oauth",
               "type": "authorization_code",
               "status": "consent_required",
               "authorization_server": "https://as.example.com",
@@ -683,7 +698,7 @@ The following is a non-normative example response showing four services: an HTTP
           "base_uri": "https://api.calendar.example",
           "connections": [
             {
-              "type": "pre_authorized",
+              "profile": "pre_authorized",
               "status": "connected",
               "present": {
                 "type": "apiKey", "in": "header", "name": "X-API-Key"
@@ -705,6 +720,7 @@ The following is a non-normative example response showing four services: an HTTP
           ],
           "connections": [
             {
+              "profile": "oauth",
               "type": "authorization_code",
               "status": "consent_required",
               "authorization_server": "https://as.example.com",
@@ -730,6 +746,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "base_uri": "https://api.saas.example",
         "connections": [
           {
+            "profile": "oauth",
             "type": "token_exchange",
             "status": "available",
             "authorization_server": "https://as.saas.example",
@@ -747,6 +764,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "base_uri": "https://api.saas.example",
         "connections": [
           {
+            "profile": "oauth",
             "type": "token_exchange",
             "status": "available",
             "authorization_server": "https://as.saas.example",
@@ -762,6 +780,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "base_uri": "https://api.example.com/mail",
         "connections": [
           {
+            "profile": "oauth",
             "type": "token_exchange",
             "status": "connected",
             "account": {"id": "acct-1", "label": "Work"},
@@ -769,6 +788,7 @@ A logical service the user can reach as more than one instance or tenant is retu
             "resource": "https://api.example.com/mail"
           },
           {
+            "profile": "oauth",
             "type": "token_exchange",
             "status": "connected",
             "account": {"id": "acct-2", "label": "Personal"},
@@ -776,6 +796,7 @@ A logical service the user can reach as more than one instance or tenant is retu
             "resource": "https://api.example.com/mail"
           },
           {
+            "profile": "oauth",
             "type": "authorization_code",
             "status": "consent_required",
             "authorization_server": "https://as.example.com",
@@ -788,15 +809,15 @@ A logical service the user can reach as more than one instance or tenant is retu
 
 # Connecting to a Service {#connecting}
 
-After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection type. For planning, the connection's `status` is the primary signal: whether a credential already exists (`connected`), can be obtained without user interaction (`available`), or requires consent (`consent_required`). The acquisition `type` is the mechanism detail the client uses once a connection is chosen. The general procedure is:
+After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection profile. For planning, the connection's `status` is the primary signal: whether a credential already exists (`connected`), can be obtained without user interaction (`available`), or requires consent (`consent_required`). The acquisition `profile` and any profile-specific `type` are the mechanism details the client uses once a connection is chosen. The general procedure is:
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
-3. For OAuth-based connection types, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}, but only after applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}); otherwise proceed without a client identifier if `client_registration` is `none`.
-4. Obtain the credential according to the connection `type` (see {{connection-types}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth-based types, after re-anchoring to the resource's metadata ({{authoritative}}).
+3. For the `oauth` profile, determine the client identity: use `client_id` if present; otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}, but only after applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}); otherwise proceed without a client identifier if `client_registration` is `none`.
+4. Obtain the credential according to the connection `profile` and profile-specific `type` (see {{connection-profiles}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth connection types, after re-anchoring to the resource's metadata ({{profile-oauth}}).
 5. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card), for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
-This specification does not define any new credential issuance mechanism. Each connection type parameterizes an existing mechanism.
+This specification does not define any new credential issuance mechanism. Each connection profile parameterizes an existing mechanism or deployment model.
 
 # Intent-Based Use and Resource Discovery {#intent}
 
@@ -824,7 +845,7 @@ The catalog is an authorization-filtered overlay: it lists what a user can reach
 
 The Service Catalog occupies a layer that existing mechanisms do not: a per-user, authorization-filtered overlay that enumerates a user's reachable services and how to connect to each. It composes with, rather than replaces, the following.
 
-OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}} discovers the audiences, resources, and scopes a subject token may be exchanged for. It is specialized to token exchange. The `token_exchange` connection type ({{type-token-exchange}}) carries the same information as one connection method among several. The two are independent and this document does not depend on it.
+OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}} discovers the audiences, resources, and scopes a subject token may be exchanged for. It is specialized to token exchange. The `oauth` profile's `token_exchange` connection type ({{type-token-exchange}}) carries the same information as one connection method among several. The two are independent and this document does not depend on it.
 
 Rich Authorization Requests {{RFC9396}} and its metadata extension {{RAR-METADATA}} express and describe fine-grained authorization details, but their metadata is server-wide. The catalog advertises, per service and per user, which `authorization_details` types are usable ({{connection-object}}) and defers each type's schema and documentation to {{RAR-METADATA}}.
 
@@ -858,19 +879,19 @@ A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens
 
 ## Token Audience Binding and Passthrough {#audience-binding}
 
-For OAuth-based connection methods, a client MUST request tokens scoped to the specific service it intends to call, including the `resource` indicator {{RFC8707}}, so that issued tokens are bound to their intended service. A client MUST NOT present a token issued for one service to a different service. A service acting as a client to a further upstream service MUST obtain a separate token rather than passing through the token it received. These requirements mirror the token audience and passthrough guidance in {{MCP-AUTHORIZATION}}.
+For `oauth` profile connection methods, a client MUST request tokens scoped to the specific service it intends to call, including the `resource` indicator {{RFC8707}}, so that issued tokens are bound to their intended service. A client MUST NOT present a token issued for one service to a different service. A service acting as a client to a further upstream service MUST obtain a separate token rather than passing through the token it received. These requirements mirror the token audience and passthrough guidance in {{MCP-AUTHORIZATION}}.
 
 ## Trust in the Catalog Provider
 
-A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. Because the catalog aggregates connection information for potentially all of a user's services, a compromised or overly broad Catalog Provider is a high-value single point that could direct the client to attacker-controlled services or authorization servers for many services at once. An autonomous client typically has no site-specific policy to judge an endpoint. It therefore MUST re-anchor trust to the resource being called before obtaining or presenting any credential, confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for that `resource` ({{authoritative}}). A client SHOULD obtain the Catalog Provider's base URL from a trusted source ({{endpoint-discovery}}) and SHOULD apply the same scrutiny to resources referenced by `links` (such as a `service-desc` or `mcp-server-card`).
+A client trusts the Catalog Provider to enumerate services, endpoints, and connection methods accurately. Because the catalog aggregates connection information for potentially all of a user's services, a compromised or overly broad Catalog Provider is a high-value single point that could direct the client to attacker-controlled services or authorization servers for many services at once. An autonomous client typically has no site-specific policy to judge an endpoint. For the `oauth` profile, it therefore MUST re-anchor trust to the resource being called before obtaining or presenting any credential, confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for that `resource` ({{profile-oauth}}). For other profiles, the client MUST apply that profile's binding and trust requirements. A client SHOULD obtain the Catalog Provider's base URL from a trusted source ({{endpoint-discovery}}) and SHOULD apply the same scrutiny to resources referenced by `links` (such as a `service-desc` or `mcp-server-card`).
 
 ## Confused Deputy and Client Registration {#confused-deputy}
 
-When `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance, and registration happens before any token is obtained. A client MUST gate dynamic registration on a trust policy (an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation) rather than registering automatically. This requirement is the same gate referenced in the connection procedure ({{connecting}}, step 3). An autonomous client, which typically has no site-specific policy, MUST NOT auto-register with a catalog-discovered authorization server absent such a policy or confirmation, and SHOULD re-anchor the connection's `authorization_server` to the resource's Protected Resource Metadata ({{authoritative}}) before registering, so it does not disclose client metadata to an authorization server it has not verified. This is consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}.
+When an `oauth` connection's `client_registration` is `dynamic` ({{RFC7591}}), a client registers with authorization servers it may not have known in advance, and registration happens before any token is obtained. A client MUST gate dynamic registration on a trust policy (an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation) rather than registering automatically. This requirement is the same gate referenced in the connection procedure ({{connecting}}, step 3). An autonomous client, which typically has no site-specific policy, MUST NOT auto-register with a catalog-discovered authorization server absent such a policy or confirmation, and SHOULD re-anchor the connection's `authorization_server` to the resource's Protected Resource Metadata ({{profile-oauth}}) before registering, so it does not disclose client metadata to an authorization server it has not verified. This is consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}.
 
 ## Authorization Server Mix-Up
 
-A catalog directs a client to potentially many authorization servers, and an agent may run several authorization flows concurrently, the conditions under which authorization server mix-up attacks arise. A client using the `authorization_code` connection type SHOULD use the `iss` authorization response parameter {{RFC9207}} and verify it identifies the expected authorization server, and MUST otherwise follow the mix-up mitigations of current OAuth security best practice. Re-anchoring each connection's `authorization_server` to the resource's Protected Resource Metadata ({{authoritative}}) further reduces this risk.
+A catalog directs a client to potentially many authorization servers, and an agent may run several authorization flows concurrently, the conditions under which authorization server mix-up attacks arise. A client using the `oauth` profile's `authorization_code` connection type SHOULD use the `iss` authorization response parameter {{RFC9207}} and verify it identifies the expected authorization server, and MUST otherwise follow the mix-up mitigations of current OAuth security best practice. Re-anchoring each connection's `authorization_server` to the resource's Protected Resource Metadata ({{profile-oauth}}) further reduces this risk.
 
 # Privacy Considerations {#privacy-considerations}
 
@@ -895,7 +916,7 @@ Metadata Description: URL of the per-user Service Catalog Endpoint associated wi
 
 Change Controller: IETF
 
-Specification Document(s): [[ this document ]]
+Specification Document(s): This document.
 
 ## Media Type {#iana-media-type}
 
@@ -915,7 +936,7 @@ Security considerations: See {{security-considerations}} of this document.
 
 Interoperability considerations: N/A
 
-Published specification: [[ this document ]]
+Published specification: This document.
 
 Applications that use this media type: OAuth 2.0 clients and autonomous agents that retrieve a per-user service catalog.
 
@@ -931,19 +952,19 @@ URI Suffix: `service-catalog`
 
 Change Controller: IETF
 
-Specification Document(s): [[ this document ]]
+Specification Document(s): This document.
 
 Status: permanent
 
 ## Service Catalog Service Type Registry {#iana-service-type}
 
-IANA is requested to establish the "Service Catalog Service Type" registry for values of the `type` member of a service object ({{service-object}}). The registration policy is Specification Required. Each registration contains the type value, a brief description, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
+IANA is requested to establish the "Service Catalog Service Type" registry for values of the `type` member of a service object ({{service-object}}). The registration policy is Specification Required. Each registration contains the type value, a brief description, any service-type-specific members it defines, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
 
-| Service Type | Description | Reference |
-| ------------ | ----------- | --------- |
-| `http` | HTTP API | {{type-http}} |
-| `mcp` | Model Context Protocol server | {{type-mcp}} |
-| `a2a` | Agent2Agent agent | {{type-a2a}} |
+| Service Type | Description | Members | Reference |
+| ------------ | ----------- | ------- | --------- |
+| `http` | HTTP API | None | {{type-http}} |
+| `mcp` | Model Context Protocol server | `mcp` | {{type-mcp}} |
+| `a2a` | Agent2Agent agent | `a2a` | {{type-a2a}} |
 
 ## Service Catalog Service Category Registry {#iana-category}
 
@@ -960,19 +981,27 @@ IANA is requested to establish the "Service Catalog Service Category" registry f
 | `crm` | Customer relationship management | {{service-categories}} |
 | `ticketing` | Support ticketing and issue tracking | {{service-categories}} |
 
-## Service Catalog Connection Type Registry {#connection-type-registry}
+## Service Catalog Connection Profile Registry {#connection-profile-registry}
 
-IANA is requested to establish the "Service Catalog Connection Type" registry for values of the `type` member of a connection object ({{connection-object}}). The registration policy is Specification Required. Each registration contains the connection type value, a brief description, the type-specific members it defines (if any), and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
+IANA is requested to establish the "Service Catalog Connection Profile" registry for values of the `profile` member of a connection object ({{connection-object}}). The registration policy is Specification Required. Each registration contains the profile value, a brief description, the profile-specific members it defines (if any), whether it defines a profile-specific `type` registry, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
 
-| Connection Type | Description | Reference |
-| --------------- | ----------- | --------- |
-| `token_exchange` | OAuth 2.0 Token Exchange | {{type-token-exchange}} |
-| `authorization_code` | Authorization code grant with PKCE | {{type-authorization-code}} |
-| `client_credentials` | Client credentials grant | {{type-client-credentials}} |
-| `id_jag` | Identity Assertion Authorization Grant | {{type-id-jag}} |
-| `pre_authorized` | Pre-provisioned out-of-band credential | {{type-pre-authorized}} |
-| `proxy_injected` | Credential injected by a trusted intermediary | {{type-proxy-injected}} |
-| `none` | No credential required (public) | {{type-none}} |
+| Profile | Description | Members | Type Registry | Reference |
+| ------- | ----------- | ------- | ------------- | --------- |
+| `oauth` | OAuth 2.0 token acquisition | `authorization_server`, `token_endpoint`, `resource`, `scopes`, `authorization_details_types`, `client_id`, `client_registration` | {{oauth-connection-type-registry}} | {{profile-oauth}} |
+| `pre_authorized` | Pre-provisioned out-of-band credential | None | None | {{profile-pre-authorized}} |
+| `proxy_injected` | Credential injected by a trusted intermediary | `proxy` | None | {{profile-proxy-injected}} |
+| `none` | No credential required (public) | None | None | {{profile-none}} |
+
+## OAuth Service Catalog Connection Type Registry {#oauth-connection-type-registry}
+
+IANA is requested to establish the "OAuth Service Catalog Connection Type" registry for values of the `type` member of an `oauth` profile connection object ({{profile-oauth}}). The registration policy is Specification Required. Each registration contains the connection type value, a brief description, the type-specific members it defines (if any), and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
+
+| Connection Type | Description | Members | Reference |
+| --------------- | ----------- | ------- | --------- |
+| `token_exchange` | OAuth 2.0 Token Exchange | `audience`, `supported_token_types` | {{type-token-exchange}} |
+| `authorization_code` | Authorization code grant with PKCE | None | {{type-authorization-code}} |
+| `client_credentials` | Client credentials grant | None | {{type-client-credentials}} |
+| `id_jag` | Identity Assertion Authorization Grant | `audience` | {{type-id-jag}} |
 
 ## Link Relation Types {#iana-link-relations}
 
@@ -982,19 +1011,19 @@ Relation Name: `sign-up`
 
 Description: Refers to a resource where a user can sign up for the linked service.
 
-Reference: [[ this document ]]
+Reference: This document.
 
 Relation Name: `mcp-server-card`
 
 Description: Refers to the Model Context Protocol Server Card for the linked service.
 
-Reference: [[ this document ]]
+Reference: This document.
 
 Relation Name: `agent-card`
 
 Description: Refers to the Agent2Agent (A2A) Agent Card for the linked service.
 
-Reference: [[ this document ]]
+Reference: This document.
 
 --- back
 
@@ -1006,10 +1035,11 @@ Reference: [[ this document ]]
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around authorization-aware connectivity discovery.
 * Fixed the omit-empty contradiction: `services` is always present, empty when none.
 * Extended re-anchoring to non-OAuth connections (out-of-band binding for `pre_authorized`/`none`/API key/mTLS), and noted re-anchoring does not establish resource authenticity.
+* Restructured connection methods into a core connection object plus connection profiles, with `oauth`, `pre_authorized`, `proxy_injected`, and `none` as the initial profiles and an OAuth-specific connection type registry.
 * Clarified filtering (whole-object selection, effective status), pagination (next-page precedence, `limit` bounds, best-effort snapshot), and the error model (429/`Retry-After`, distinct problem `type`s).
 * Pinned `present` to OpenAPI 3.1+ and forbade casing normalization. Added a mandatory-to-implement bearer auth baseline. Made the DCR trust-gate a MUST for autonomous clients.
 * Clarified multi-account silent acquisition, the `audience` selector's trust basis, `client_credentials` status, `base_uri` vs `resource`, and the status default caution. Dropped the decorative `version` member.
-* Added the `proxy_injected` connection type for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.
+* Added the `proxy_injected` connection profile for the agent-holds-zero-secrets model, where a trusted intermediary attaches the credential on egress.
 * Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (which the client derives from the service descriptor and RAR type metadata), and `mcp` services are generally scopable only at server granularity.
 
 -00
