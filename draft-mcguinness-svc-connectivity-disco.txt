@@ -105,8 +105,9 @@ Table of Contents
      9.3.  No Secrets in the Catalog
      9.4.  Token Audience Binding and Passthrough
      9.5.  Trust in the Catalog Provider
-     9.6.  Confused Deputy and Client Registration
-     9.7.  Authorization Server Mix-Up
+     9.6.  Trust Requirements for Autonomous Clients
+     9.7.  Confused Deputy and Client Registration
+     9.8.  Authorization Server Mix-Up
    10. Privacy Considerations
    11. IANA Considerations
      11.1.  OAuth Authorization Server Metadata
@@ -231,6 +232,12 @@ Table of Contents
    planning any action.  This makes it primarily an agent-facing
    mechanism, though nothing restricts its use to agents.
 
+   Discovery and planning are autonomous; connecting is not
+   unconditionally so.  An agent can plan entirely from the catalog, but
+   connecting to a service the user has no prior relationship with
+   requires a trust anchor (an explicit policy, configuration, or user
+   confirmation), as the security considerations require (Section 9.6).
+
 1.2.  What the Catalog Is Not
 
    The catalog is deliberately narrow.  It is *not*:
@@ -310,10 +317,12 @@ Table of Contents
 
    3.  Filter and select a service (Section 4.2.1, Section 5.2).
 
-   4.  Verify the selected service's resource and authorization server
-       metadata, re-anchoring trust to the resource (Section 5.6).
+   4.  Select a connection method (Section 5.6).
 
-   5.  Select a connection method (Section 5.6).
+   5.  Establish trust in the selected connection as its profile
+       requires, before obtaining a credential (for the oauth profile,
+       this means re-anchoring trust to the resource's metadata)
+       (Section 5.7).
 
    6.  Obtain the credential for the selected connection (Section 6).
 
@@ -720,7 +729,24 @@ Table of Contents
 
    id:  REQUIRED.  A string giving a stable, provider-assigned
       identifier for the service, unique within the catalog.  Clients
-      MAY use this value to correlate a service across catalog requests.
+      MAY use this value to correlate a service across catalog requests
+      to the same Catalog Provider.
+
+   uid:  OPTIONAL.  An absolute URI (which MAY be a URN) that globally
+      and stably identifies this service object, independent of any one
+      catalog.  Whereas id is unique only within this catalog, uid lets
+      a client correlate this service across different Catalog
+      Providers, and with the same service as discovered elsewhere (for
+      example, in a public cross-organization discovery catalog such as
+      [ARD]).  Service objects that are instances or tenants of one
+      logical service (grouped by group; see below) each carry their own
+      uid, just as each has its own id.  It is descriptive only and
+      carries no authority: a client MUST NOT treat a shared uid as
+      evidence that two entries are the same service without applying
+      the same trust checks it applies to any catalog entry
+      (Section 5.6).  It is distinct from base_uri (the network location
+      the client calls) and from a connection's resource (the resource
+      indicator [RFC8707]).
 
    name:  REQUIRED.  A string giving a human-readable name for the
       service, suitable for display to an end user (for example, in a
@@ -961,6 +987,13 @@ Table of Contents
          flows) is expressed by the connection profile and, where
          applicable, type.
 
+      *  API key location: when the type is apiKey, the scheme MUST use
+         in: header.  A catalog MUST NOT specify in: query (which would
+         place the credential in the request URI, where it is exposed in
+         logs and history) and SHOULD NOT specify in: cookie.  A client
+         that receives an apiKey scheme with in: query MUST NOT present
+         the credential that way.
+
       *  When omitted: presentation is resolved by the selected profile.
          If the profile does not define a default, the client uses the
          service's referenced descriptor, such as an OpenAPI document,
@@ -1176,18 +1209,37 @@ Table of Contents
       authorization server to receive it: for example, because the
       authorization server is the issuer of the presented token or the
       user's identity provider, or is permitted by a trust policy or
-      explicit configuration (Section 9.6).  Having obtained a token,
+      explicit configuration (Section 9.7).  Having obtained a token,
       the client SHOULD confirm it is bound to the intended service
       before using it (Section 5.7.1.1).
 
    *  Re-anchoring confirms that the authorization_server is
       authoritative for the resource.  It does not establish that the
       resource (or base_uri) is the service the user intended, since a
-      compromised provider could supply a resource whose Protected
-      Resource Metadata is self-consistent.  For a consent_required
-      service with which the user has no prior relationship, the client
-      MUST independently confirm the resource (for example, by user
-      confirmation or an origin allowlist) before sending credentials.
+      compromised or overly broad Catalog Provider could supply a
+      resource whose Protected Resource Metadata is self-consistent.  In
+      this document, the user has a _prior relationship_ with a service
+      when the selected connection's status is connected, or the
+      connection carries an account (Section 5.6); otherwise the client
+      MUST treat the service as one with which the user has no prior
+      relationship.  For any connection that has, or from which the
+      client can derive, a resource, to a service with no prior
+      relationship, the client MUST independently confirm that resource
+      (for example, by user confirmation or an origin allowlist) before
+      obtaining or presenting a credential, regardless of the
+      connection's status.  A silent connection (status of available)
+      needs this confirmation more than an interactive one, not less:
+      because it completes with no user involvement, a malicious entry
+      whose resource, that resource's Protected Resource Metadata, and
+      authorization_server are attacker-controlled but mutually
+      consistent would pass re-anchoring and cause the client to
+      disclose its credential and user data to the attacker with no
+      human in the loop.  For an audience-only connection (no resource;
+      the token_exchange and id_jag types) there is no resource to
+      confirm: the alternative anchor above applies instead, and the
+      client relies on independent trust in the authorization_server and
+      SHOULD confirm the issued token is bound to the intended service
+      (Section 5.7.1.1).
 
    *  If a connection value conflicts with the authoritative metadata,
       the authoritative metadata takes precedence.
@@ -1332,11 +1384,18 @@ Table of Contents
    The proxy_injected profile describes a connection in which the client
    never obtains or holds the service credential.  A trusted
    intermediary (an egress proxy or gateway) attaches the credential to
-   the client's requests to the service on the client's behalf.  This is
-   the agent-safer model in which a compromised client yields no long-
-   lived service secret.  It is compatible with the audience-binding and
-   no-passthrough rules of Section 9.4, which the intermediary (acting
-   as the client to the service) observes.
+   the client's requests to the service on the client's behalf.  This
+   narrows the client's exposure: a compromised client does not yield
+   the long-lived service credential itself.  It does not eliminate
+   exposure.  Where the client authenticates to an explicit endpoint
+   (below), that credential fronts every credential the intermediary
+   will inject and is therefore itself sensitive; and the policy by
+   which the intermediary decides which credential to attach to which
+   request is an out-of-band trust assumption the client depends on (a
+   client that can steer its own destination could otherwise induce
+   injection toward an unintended target).  It is compatible with the
+   audience-binding and no-passthrough rules of Section 9.4, which the
+   intermediary (acting as the client to the service) observes.
 
    Profile-specific members:
 
@@ -1594,7 +1653,7 @@ Table of Contents
        client_id if present; otherwise, if client_registration is
        dynamic, register with the authorization server using [RFC7591],
        but only after applying a trust policy to the catalog-discovered
-       authorization server (Section 9.6); otherwise proceed without a
+       authorization server (Section 9.7); otherwise proceed without a
        client identifier if client_registration is none.
 
    4.  Obtain the credential according to the connection profile and
@@ -1748,6 +1807,39 @@ Table of Contents
    consumes that format.  Such a document is out of scope for this
    specification.
 
+   Agentic Resource Discovery [ARD] defines a public, cross-organization
+   discovery layer for agentic resources.  An organization publishes a
+   static catalog at a well-known location on its domain; registries
+   crawl and index these catalogs so an agent can find capabilities
+   (such as MCP servers, A2A agents, and OpenAPI-described APIs) by
+   natural-language intent and verify the publisher's cryptographic
+   identity before connecting.  It is complementary to this document and
+   operates at a different layer:
+
+   *  Scope: Agentic Resource Discovery is general, public, and
+      crawlable; the catalog defined here is per-user, authenticated,
+      and (for the reasons in Section 10) deliberately not crawlable.
+
+   *  Layer: Agentic Resource Discovery stops before invocation,
+      delegating authentication to each artifact's native protocol.
+      This document's contribution is precisely the layer it leaves
+      open: which services a specific user and client can reach, and how
+      each connection's credential is acquired and presented.
+
+   *  Trust: where Agentic Resource Discovery anchors trust in a signed
+      publisher identity, a per-user catalog derives authority from the
+      user's identity provider and from re-anchoring each connection to
+      the resource's Protected Resource Metadata (Section 5.7.1), not
+      from a publisher signature.
+
+   The two compose: a public Agentic Resource Discovery catalog is the
+   outside view of an organization's capabilities, while a Service
+   Catalog is the per-user, authorization-filtered view of the subset a
+   given user can actually connect to.  Both reference the same
+   underlying MCP Server Cards, A2A Agent Cards, and OpenAPI documents,
+   and a service object's optional uid (Section 5.2) lets a client
+   correlate one service across the two.
+
    Several of the above are evolving specifications: A2A [A2A], MCP
    Server Cards [MCP-SERVER-CARD], and [RAR-METADATA] are referenced
    here as directional rather than stable dependencies.  The catalog's
@@ -1832,7 +1924,48 @@ Table of Contents
    SHOULD apply the same scrutiny to resources referenced by links (such
    as a service-desc or mcp-server-card).
 
-9.6.  Confused Deputy and Client Registration
+9.6.  Trust Requirements for Autonomous Clients
+
+   Several connection methods are safe only when the client can
+   establish trust from a source other than the catalog.  These
+   requirements are stated with each method; this section collects them
+   so that an implementer of an autonomous client (one with no human in
+   the loop and typically no site-specific policy) can see the floor at
+   a glance:
+
+   *  pre_authorized (Section 5.7.2) and none (Section 5.7.4): the
+      client establishes the binding between the service's base_uri and
+      the intended service from a trusted source before sending any
+      credential or user data.
+
+   *  proxy_injected (Section 5.7.3): the client establishes trust in
+      the intermediary's endpoint and identity, and relies on the
+      intermediary's credential-selection policy.
+
+   *  Audience-only token_exchange and id_jag (Section 5.7.1): the
+      client independently trusts the connection's authorization_server
+      before presenting a subject_token or assertion.
+
+   *  Dynamic client registration (Section 9.7): the client gates
+      registration on a trust policy.
+
+   *  Any connection to a service with which the user has no prior
+      relationship (Section 5.7.1): the client independently confirms
+      the resource, regardless of status.
+
+   An autonomous client that cannot satisfy these has a well-defined
+   safe baseline requiring no out-of-band trust beyond its configured
+   Catalog Provider and the OAuth metadata chain: an oauth connection
+   that (1) carries an explicit resource, (2) re-anchors successfully,
+   confirming via that resource's Protected Resource Metadata [RFC9728]
+   that the connection's authorization_server is authoritative for it
+   (Section 5.7.1), and (3) is to a service with which the user has a
+   prior relationship (status of connected).  Connection methods outside
+   this baseline MUST NOT be used by an autonomous client absent an
+   explicit trust policy, configuration, or human confirmation supplying
+   the required out-of-band trust.
+
+9.7.  Confused Deputy and Client Registration
 
    When an oauth connection's client_registration is dynamic
    ([RFC7591]), a client registers with authorization servers it may not
@@ -1851,7 +1984,7 @@ Table of Contents
    authorization server it has not verified.  This is consistent with
    the confused-deputy guidance in [MCP-AUTHORIZATION].
 
-9.7.  Authorization Server Mix-Up
+9.8.  Authorization Server Mix-Up
 
    A catalog directs a client to potentially many authorization servers,
    and an agent may run several authorization flows concurrently, the
@@ -2259,6 +2392,9 @@ Table of Contents
 
    [A2A]      "Agent2Agent (A2A) Protocol", <https://a2a-protocol.org/>.
 
+   [ARD]      "Agentic Resource Discovery", 2026,
+              <https://agenticresourcediscovery.org/>.
+
    [I-D.oauth-identity-assertion-authz-grant]
               Parecki, A., McGuinness, K., and B. Campbell, "OAuth 2.0
               Identity Assertion JWT Authorization Grant", 2026,
@@ -2339,6 +2475,32 @@ Document History
    *  Moved DPoP [RFC9449] to normative references (it is cited with a
       conditional MUST), and clarified the Connection Method
       definition's two-layer wording.
+
+   *  Added an optional uid service identifier for cross-catalog and
+      cross-provider correlation, and a Relationship to Other Work entry
+      distinguishing Agentic Resource Discovery (public, pre-invocation,
+      publisher-signed) from this document's per-user, authenticated
+      connectivity layer.
+
+   *  Hardened the design against a stress test: extended independent
+      resource confirmation to any no-prior-relationship connection
+      regardless of status (silent available connections need it most);
+      added a "Trust Requirements for Autonomous Clients" section
+      consolidating the safe zero-config baseline; restricted a present
+      apiKey to in: header (no credential in the request URI); and
+      softened the proxy_injected exposure claim to note the
+      intermediary credential and injection-selection trust dependency.
+
+   *  Fixed defects from a follow-up review: reconciled the no-prior-
+      relationship resource-confirmation rule with audience-only
+      connections (which have no resource to confirm); defined "prior
+      relationship" in terms of observable signals (status of connected
+      or an account); clarified that uid identifies a single service
+      object rather than a group's logical service; noted in the
+      introduction that discovery and planning are autonomous while
+      connecting to an unfamiliar service needs a trust anchor; and made
+      the overview's trust step profile-generic (re-anchoring as the
+      oauth instance) and ordered it after connection selection.
 
    -00
 
