@@ -1037,7 +1037,7 @@ Table of Contents
       *  No restatement: the catalog SHOULD NOT inline a present value
          that merely repeats security schemes already published in the
          service's descriptor (an OpenAPI document via service-desc, an
-         A2A Agent Card, or an MCP Server Card); a client obtains those
+         A2A Agent Card, or an MCP Server Card).  A client obtains those
          by reference (Section 7).
 
       *  Applicability: present is primarily for http services that lack
@@ -1200,10 +1200,12 @@ Table of Contents
       [RAR-METADATA] (discovered via this connection's
       authorization_server) rather than restated in the catalog.
 
-   client_id:  OPTIONAL.  A string giving a static OAuth 2.0 client
-      identifier the client uses with the authorization_server.  This
-      supports authorization servers that require a pre-registered, per-
-      service, or per-tenant client registration.
+   client_id:  OPTIONAL.  A string giving a static, pre-assigned OAuth
+      2.0 client identifier the client uses with the
+      authorization_server.  It is present with client_registration
+      static (or on its own, which the client treats as static), and is
+      absent with dynamic and client_id_metadata_document, which do not
+      use a pre-assigned identifier.
 
    client_registration:  OPTIONAL.  A string naming how the client
       establishes its identity with the authorization_server.  One of:
@@ -1232,6 +1234,11 @@ Table of Contents
       if one is present, and otherwise an identity it determines is
       appropriate by other means (including no client identifier where
       the flow requires none).
+
+      Additional values MAY be defined by specifications that update the
+      oauth profile.  A client that encounters a client_registration
+      value it does not implement MUST NOT use that connection method,
+      as for an unknown profile (Section 5.6).
 
    The OAuth values in a connection object (authorization_server,
    resource, scopes, and authorization_details_types) are an
@@ -1384,9 +1391,9 @@ Table of Contents
    grant Section 4.1 of [RFC6749] with PKCE.  This type typically has
    status of consent_required.  The client uses the authorization_server
    metadata [RFC8414] to locate endpoints, includes the resource
-   parameter [RFC8707], and uses client_id or client_registration to
-   determine its client identity.  This type defines no additional
-   members.
+   parameter [RFC8707], and determines its client identity from
+   client_registration (and, for static, client_id).  This type defines
+   no additional members.
 
    For interactive acquisition, the client SHOULD pass the account's
    login_hint, or otherwise rely on the authorization server's account
@@ -1403,7 +1410,10 @@ Table of Contents
    status vocabulary does not apply cleanly, a client_credentials
    connection SHOULD use status available (reflecting the client's own
    access, not the user's).  The values connected and consent_required
-   do not apply.  This type defines no additional members.
+   do not apply.  Because this connection has no user relationship, the
+   resource-confirmation requirement (Section 5.7.1) is satisfied by the
+   client's local policy or configuration rather than by user
+   confirmation.  This type defines no additional members.
 
 5.7.1.4.  id_jag
 
@@ -2620,6 +2630,15 @@ Document History
       connecting to an unfamiliar service needs a trust anchor; and made
       the overview's trust step profile-generic (re-anchoring as the
       oauth instance) and ordered it after connection selection.
+
+   *  Follow-up review cleanups: noted that client_registration values
+      are extended by specifications updating the oauth profile and that
+      an unknown value is not used; removed the duplicated client_id/
+      static rationale and stated when client_id is present or absent;
+      aligned the authorization_code client-identity wording with the
+      explicit modes; noted that client_credentials satisfies resource
+      confirmation by local policy; and split a remaining dense
+      sentence.
 
    *  Added the client_id_metadata_document client-registration mode
       [CIMD] (the client uses an HTTPS URL it controls as its
