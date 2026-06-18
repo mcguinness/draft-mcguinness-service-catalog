@@ -80,6 +80,10 @@ informative:
     title: "Agent2Agent (A2A) Protocol"
     target: https://a2a-protocol.org/
     date: false
+  CIMD:
+    title: "OAuth Client ID Metadata Document"
+    target: https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/
+    date: 2026
   ARD:
     title: "Agentic Resource Discovery"
     target: https://agenticresourcediscovery.org/
@@ -581,7 +585,13 @@ client_id:
 : OPTIONAL. A string giving a static OAuth 2.0 client identifier the client uses with the `authorization_server`. This supports authorization servers that require a pre-registered, per-service, or per-tenant client registration.
 
 client_registration:
-: OPTIONAL. A string describing how the client obtains a client identifier when `client_id` is absent: `dynamic` (register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata) or `none` (no client identifier is required). When both `client_id` and `client_registration` are absent, the client uses a client identity it determines is appropriate by other means.
+: OPTIONAL. A string naming how the client establishes its identity with the `authorization_server`. One of:
+
+    * `static`: use the pre-assigned identifier in the `client_id` member, which MUST be present. This supports authorization servers that require a pre-registered, per-service, or per-tenant client.
+    * `dynamic`: register using OAuth 2.0 Dynamic Client Registration {{RFC7591}}, discovering the registration endpoint from the authorization server metadata. The authorization server issues the client identifier.
+    * `client_id_metadata_document`: use an HTTPS URL the client controls as its `client_id`, per {{CIMD}}. The authorization server dereferences that URL to obtain the client's metadata, with no pre-registration and no registration call. Support is advertised by `client_id_metadata_document_supported` in the authorization server metadata {{RFC8414}}. Where an authorization server has instead pre-registered a specific Client ID Metadata Document URL, the catalog uses `static` and carries that URL as the `client_id`.
+
+    When `client_registration` is absent, the client uses the `client_id` if one is present, and otherwise an identity it determines is appropriate by other means (including no client identifier where the flow requires none).
 
 The OAuth values in a connection object (`authorization_server`, `resource`, `scopes`, and `authorization_details_types`) are an optimization: a cache of values whose authoritative sources are the service's Protected Resource Metadata {{RFC9728}}, the authorization server metadata {{RFC8414}}, and the service's descriptor. They let a client act without extra round trips, but they are not a second source of truth. Specifically:
 
@@ -858,10 +868,12 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
-3. For the `oauth` profile, determine the client identity:
-    * If `client_id` is present, use it.
-    * Otherwise, if `client_registration` is `dynamic`, register with the authorization server using {{RFC7591}}, after first applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}).
-    * Otherwise, if `client_registration` is `none`, proceed without a client identifier.
+3. For the `oauth` profile, determine the client identity from `client_registration`:
+    * `static`: use the `client_id` member.
+    * `dynamic`: register with the authorization server using {{RFC7591}}, after first applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}).
+    * `client_id_metadata_document`: use an HTTPS URL the client controls as its `client_id`, per {{CIMD}}. The authorization server dereferences it, with no registration call.
+
+    When `client_registration` is absent, use the `client_id` if present, and otherwise an identity the client determines is appropriate, or none where the flow requires none.
 4. Obtain the credential according to the connection `profile` and profile-specific `type` (see {{connection-profiles}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth connection types, after re-anchoring to the resource's metadata ({{profile-oauth}}).
 5. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card), for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
@@ -971,6 +983,8 @@ When an `oauth` connection's `client_registration` is `dynamic` ({{RFC7591}}), t
 * A client MUST gate dynamic registration on a trust policy, rather than registering automatically. The policy can be an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation.
 * An autonomous client, which typically has no site-specific policy, MUST NOT auto-register with a catalog-discovered authorization server absent such a policy or confirmation.
 * Before registering, the client SHOULD re-anchor the connection's `authorization_server` to the resource's Protected Resource Metadata ({{profile-oauth}}), so that it does not disclose client metadata to an authorization server it has not verified.
+
+The Client ID Metadata Document mechanism ({{CIMD}}) is a lighter-weight alternative to dynamic registration: it makes no registration write and yields no client secret. The client still presents its `client_id` URL to a catalog-discovered authorization server, which then dereferences it, so the same re-anchoring SHOULD precede its use.
 
 ## Authorization Server Mix-Up
 
@@ -1131,6 +1145,7 @@ Reference: This document.
 * Added an optional `uid` service identifier for cross-catalog and cross-provider correlation, and a Relationship to Other Work entry distinguishing Agentic Resource Discovery (public, pre-invocation, publisher-signed) from this document's per-user, authenticated connectivity layer.
 * Hardened the design against a stress test: extended independent resource confirmation to any no-prior-relationship connection regardless of `status` (silent `available` connections need it most); added a "Trust Requirements for Autonomous Clients" section consolidating the safe zero-config baseline; restricted a `present` `apiKey` to `in: header` (no credential in the request URI); and softened the `proxy_injected` exposure claim to note the intermediary credential and injection-selection trust dependency.
 * Fixed defects from a follow-up review: reconciled the no-prior-relationship resource-confirmation rule with audience-only connections (which have no resource to confirm); defined "prior relationship" in terms of observable signals (`status` of `connected` or an `account`); clarified that `uid` identifies a single service object rather than a `group`'s logical service; noted in the introduction that discovery and planning are autonomous while connecting to an unfamiliar service needs a trust anchor; and made the overview's trust step profile-generic (re-anchoring as the `oauth` instance) and ordered it after connection selection.
+* Added the `client_id_metadata_document` client-registration mode {{CIMD}} (the client uses an HTTPS URL it controls as its `client_id`), and made `client_registration` an explicit mode enumeration (`static`, `dynamic`, `client_id_metadata_document`) rather than inferring the static case from the presence of `client_id`. Dropped the ambiguous `none` value.
 * Readability pass over the normative requirements: broke dense multi-requirement paragraphs (filter support, pagination, response construction, error model, trust in the Catalog Provider, confused deputy, audience binding) into scannable bullet lists; split the client-identity branch, the `uid`, `account`, and intent `scopes` text into sub-lists; and split several long sentences. No normative changes.
 * Addressed external review: catalog-asserted `connected` no longer waives independent resource confirmation (the client must corroborate the relationship from its own state, local policy, or user confirmation), and the autonomous "safe baseline" is recast as necessary-but-not-sufficient "minimum technical checks"; audience-only connections now require local policy to bind the (`authorization_server`, `audience`) pair to the intended service; softened the `present` `apiKey` rule to preserve OpenAPI fidelity (SHOULD-not-advertise / client-rejects-by-default for `in: query`); gave `uid` an issuer-controlled minting model and a privacy note; specified `Accept` negotiation for absent/`*/*`/`application/*+json`; and shortened the Agentic Resource Discovery comparison to one paragraph.
 
