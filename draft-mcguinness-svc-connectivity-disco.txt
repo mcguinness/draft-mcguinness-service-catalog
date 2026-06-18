@@ -278,10 +278,10 @@ Table of Contents
 
    Connection Method:  One way a client can obtain a credential and
       present it to call a service.  A connection method separates two
-      layers: an acquisition profile and, where needed, a profile-
-      specific type (how the credential is obtained; see Section 5.7)
-      and a presentation (how the credential is presented to the
-      service; see Section 5.6).  OAuth 2.0 token issuance is one
+      layers: acquisition (how the credential is obtained, given by the
+      profile and, where needed, a profile-specific type; see
+      Section 5.7) and presentation (how the credential is presented to
+      the service; see Section 5.6).  OAuth 2.0 token issuance is one
       acquisition profile.  Others use a pre-provisioned credential,
       delegate credential handling to a trusted intermediary, or use
       none.
@@ -1156,9 +1156,29 @@ Table of Contents
       Section 5.3.2).  When the connection omits resource, the client
       first derives the protected resource identifier as described
       above.  If the client cannot determine and validate the protected
-      resource, it MUST NOT use the connection.  This prevents a
+      resource, it MUST NOT use the connection, unless the connection
+      identifies its target solely by an authorization-server-local
+      audience (the token_exchange and id_jag types), for which the
+      alternative anchor in the next bullet applies.  This prevents a
       misconfigured or malicious catalog from directing the client to an
       attacker-controlled authorization server (see Section 9).
+
+   *  When an OAuth connection has no resource and identifies its target
+      solely by an authorization-server-local audience (token_exchange
+      (Section 5.7.1.1) or id_jag (Section 5.7.1.4)), there is no
+      Protected Resource Metadata to anchor against, and resource re-
+      anchoring does not apply.  The trust anchor is instead the
+      connection's authorization_server, which issues and audience-
+      restricts the resulting token.  Because executing such a
+      connection discloses a credential to that authorization server (a
+      subject_token for token_exchange, an assertion for id_jag), the
+      client MUST NOT present it unless it independently trusts that
+      authorization server to receive it: for example, because the
+      authorization server is the issuer of the presented token or the
+      user's identity provider, or is permitted by a trust policy or
+      explicit configuration (Section 9.6).  Having obtained a token,
+      the client SHOULD confirm it is bound to the intended service
+      before using it (Section 5.7.1.1).
 
    *  Re-anchoring confirms that the authorization_server is
       authoritative for the resource.  It does not establish that the
@@ -1222,10 +1242,10 @@ Table of Contents
       tenant member.  Unlike token_endpoint, the audience selector has
       no independent metadata to validate against.  It is a catalog-
       supplied value the client trusts to the extent it trusts the
-      Catalog Provider, bounded by the re-anchored authorization_server,
-      which issues and audience-restricts the resulting token.  A client
-      SHOULD confirm that the token it receives is bound to the intended
-      service before using it.
+      Catalog Provider, bounded by the trusted authorization_server
+      (Section 5.7.1), which issues and audience-restricts the resulting
+      token.  A client SHOULD confirm that the token it receives is
+      bound to the intended service before using it.
 
    supported_token_types:  OPTIONAL.  An array of token type URIs
       [RFC8693] that may be requested.  If omitted, the client may
@@ -1341,7 +1361,12 @@ Table of Contents
 
    The none profile describes a service that requires no client
    authentication.  This profile defines no additional members and
-   typically has status of available.
+   typically has status of available.  Although no credential is
+   presented, the client still sends requests, and possibly user data,
+   to the service's base_uri.  As with the other non-oauth profiles, the
+   client MUST establish the service's identity from a trusted source
+   (explicit configuration, a trust policy, or user confirmation), not
+   from the catalog alone, before sending any user data.
 
    A Catalog Provider MUST NOT include secret values (access tokens,
    refresh tokens, client secrets, API keys, or private keys) anywhere
@@ -2157,6 +2182,11 @@ Table of Contents
               DOI 10.17487/RFC9396, May 2023,
               <https://www.rfc-editor.org/info/rfc9396>.
 
+   [RFC9449]  Fett, D., Campbell, B., Bradley, J., Lodderstedt, T.,
+              Jones, M., and D. Waite, "OAuth 2.0 Demonstrating Proof of
+              Possession (DPoP)", RFC 9449, DOI 10.17487/RFC9449,
+              September 2023, <https://www.rfc-editor.org/info/rfc9449>.
+
    [RFC9457]  Nottingham, M., Wilde, E., and S. Dalal, "Problem Details
               for HTTP APIs", RFC 9457, DOI 10.17487/RFC9457, July 2023,
               <https://www.rfc-editor.org/info/rfc9457>.
@@ -2200,11 +2230,6 @@ Table of Contents
               Authorization Server Issuer Identification", RFC 9207,
               DOI 10.17487/RFC9207, March 2022,
               <https://www.rfc-editor.org/info/rfc9207>.
-
-   [RFC9449]  Fett, D., Campbell, B., Bradley, J., Lodderstedt, T.,
-              Jones, M., and D. Waite, "OAuth 2.0 Demonstrating Proof of
-              Possession (DPoP)", RFC 9449, DOI 10.17487/RFC9449,
-              September 2023, <https://www.rfc-editor.org/info/rfc9449>.
 
    [RFC9470]  Bertocci, V. and B. Campbell, "OAuth 2.0 Step Up
               Authentication Challenge Protocol", RFC 9470,
@@ -2300,6 +2325,20 @@ Document History
       mapping (which the client derives from the service descriptor and
       RAR type metadata), and mcp services are generally scopable only
       at server granularity.
+
+   *  Resolved the re-anchoring contradiction for audience-only
+      token_exchange/id_jag connections (no resource/Protected Resource
+      Metadata): defined an alternative trust anchor on the
+      authorization_server rather than requiring resource re-anchoring
+      those connections cannot satisfy.
+
+   *  Required none-profile clients to establish service identity from a
+      trusted source before sending user data, aligning it with the
+      other non-oauth profiles.
+
+   *  Moved DPoP [RFC9449] to normative references (it is cited with a
+      conditional MUST), and clarified the Connection Method
+      definition's two-layer wording.
 
    -00
 
