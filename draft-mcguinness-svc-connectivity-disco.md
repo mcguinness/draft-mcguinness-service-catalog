@@ -135,6 +135,8 @@ Existing discovery mechanisms describe services. They do not say which services 
 
 This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint** and receives, for the authenticated user, the set of reachable services and, for each, the descriptive metadata to understand it and one or more **connection methods** to obtain credentials and call it. The document returned is the *catalog*. The server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
 
+This role is not greenfield. An enterprise identity provider already maintains a per-user catalog of the services a user can reach. It is the single sign-on application catalog behind the user's app launcher or dashboard, built from the same authorization decisions used here. Today that catalog is human-facing. It tells an agent neither how to connect nor whether a connection can be made without interaction. This document makes that existing per-user catalog machine-readable and connection-aware. An identity provider is therefore a natural Catalog Provider, and can expose what it already knows rather than build a new inventory.
+
 It is useful to see this as the reachability analogue of OAuth 2.0 Authorization Server Metadata {{RFC8414}}: where RFC 8414 lets a client discover one authorization server per issuer and its authorization capabilities, this document lets a client discover the reachable services per user and client and their connection capabilities.
 
 The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
@@ -144,6 +146,8 @@ The central abstraction is the separation of three concerns that existing mechan
 * **Presentation**: how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
 
 Discovery is the catalog's own role. Acquisition and presentation are the two layers carried by each connection method ({{connection-object}}). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism. OAuth 2.0 is not assumed.
+
+This yields the document's guiding principle: **the core catalog is small, and everything mechanism-specific is a separately evolvable profile.** The core is the per-user enumeration of services and, for each, its connection methods and per-connection status. How a credential is acquired and presented is defined by a connection profile. This document specifies the core together with an initial set of profiles. Profiles, service types, categories, and link relations are each extension points behind an IANA registry. They evolve independently of the core. A Catalog Provider and client interoperate on the core and on the profiles they share. The mandatory surface an implementer must adopt stays small even as the breadth below grows.
 
 Beyond this, the design is deliberately general:
 
@@ -161,7 +165,13 @@ Service types, categories, link relations, connection profiles, and profile-spec
 
 An autonomous agent cannot realistically, at runtime, scan a user's OpenAPI documents, infer which SaaS systems the user actually has, determine which accounts exist, and derive each service's connection mechanism. Service connectivity discovery answers exactly that: in one request, an agent learns the set of services that are both relevant and connectable for the user, and how to connect, before planning any action. This makes it primarily an agent-facing mechanism, though nothing restricts its use to agents.
 
-Discovery and planning are autonomous; connecting is not unconditionally so. An agent can plan entirely from the catalog, but connecting to a service the user has no prior relationship with requires a trust anchor (an explicit policy, configuration, or user confirmation), as the security considerations require ({{autonomous-trust}}).
+The value proposition is therefore precise. Without a human in the loop, an agent can:
+
+* reconnect to services the user has already linked (`status` of `connected`), avoiding a per-service authorization failure and retry on each one,
+* plan across the set of reachable services for a user's goal, and
+* request only the intent-scoped access a task needs ({{intent}}).
+
+These are the autonomous capabilities. Automated connection to a service the user has no prior relationship with is different. It requires a trust anchor. That anchor is a prior relationship the client can corroborate, a local policy, or user confirmation ({{autonomous-trust}}). The catalog makes discovery and planning fully autonomous. It makes connection autonomous only within an established trust boundary, and makes that boundary explicit.
 
 ## What the Catalog Is Not
 
@@ -237,7 +247,7 @@ The client MUST authenticate the request. The Catalog Provider determines the us
 * A client SHOULD use the bearer baseline unless it has out-of-band knowledge of another supported method.
 * If the request is not authenticated and authentication is required, the Catalog Provider MUST return an HTTP 401 (Unauthorized) response.
 
-A client MAY constrain the response with the filtering query parameters in {{filtering}}, and page through a large result with the pagination query parameters in {{pagination}}. A Catalog Provider MUST ignore any query parameter it does not support or understand. A provider that does support a parameter applies it as specified, including rejecting an invalid `limit` or `cursor` ({{pagination}}). All query parameter names and values are case sensitive.
+A client SHOULD scope its request to the capability or service it needs, using the filtering query parameters in {{filtering}}, rather than retrieve the user's entire catalog. A scoped request, for example by `category` or by a search term, is the primary and expected use. A Catalog Provider MAY require a request to be scoped, and MAY restrict unscoped, full-catalog enumeration to clients specifically authorized for it ({{information-disclosure}}). A client MAY page through a large result with the pagination query parameters in {{pagination}}. A Catalog Provider MUST ignore any query parameter it does not support or understand. A provider that does support a parameter applies it as specified, including rejecting an invalid `limit` or `cursor` ({{pagination}}). All query parameter names and values are case sensitive.
 
 The following is an example request for the user's email services:
 
@@ -947,7 +957,8 @@ The Service Catalog Endpoint MUST be served over TLS {{Section 1.6 of RFC6749}}.
 
 The catalog reveals the complete set of services a user can reach, together with the authentication schemes and connection methods for each. This is strictly more information than a per-service discovery: a single compromised user or client token yields the user's entire reachable map in one call, making the catalog a reconnaissance oracle. To mitigate this risk:
 
-* The Catalog Provider MUST require authentication and return only services and connection methods the authenticated user and client are authorized to use, and SHOULD apply data minimization by default rather than relying on the client to request a narrower view (filters are optional and a provider MAY ignore them; see {{filtering}}).
+* The Catalog Provider MUST require authentication and return only services and connection methods the authenticated user and client are authorized to use. This authorization filtering applies to every request, whatever its scope.
+* A scoped request, by capability or search term, is the expected shape, and the Catalog Provider SHOULD return only the services responsive to it. A full enumeration of a user's reachable set is the highest-value reconnaissance result, so the Catalog Provider SHOULD treat unscoped, full-catalog enumeration as a privileged operation. It MAY require a scoping parameter, and MAY restrict full enumeration to clients specifically authorized for it ({{catalog-request}}).
 * The Catalog Provider SHOULD apply rate limiting (signaled with HTTP 429 and `Retry-After`; see {{error-response}}), SHOULD monitor for enumeration-style access patterns, and SHOULD log access for security monitoring.
 * Responses are user specific and MUST NOT be cached by shared caches. Cache directives, when present, MUST mark the response as private.
 
@@ -1138,6 +1149,7 @@ Reference: This document.
 -01
 
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.
+* Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
 * Made `client_registration` an explicit mode enumeration and added the `client_id_metadata_document` (CIMD) mode {{CIMD}}, in which the client uses an HTTPS URL it controls as its `client_id`.
 * Specified the presentation layer: `present` is an OpenAPI 3.1+ Security Scheme Object with casing preserved, `apiKey` schemes are recommended to use `in: header`, and the catalog references a service's descriptor rather than restating its security schemes.
@@ -1147,6 +1159,7 @@ Reference: This document.
 * Gave `pre_authorized`, `proxy_injected`, and `none` out-of-band service-identity and trust requirements, and noted the intermediary-credential and injection-selection trust dependencies of `proxy_injected`.
 * Added an optional `uid` cross-catalog service identifier with an issuer-controlled minting model and privacy guidance.
 * Specified filtering (whole-object selection, effective status), pagination (next-page precedence, `limit` bounds, best-effort snapshot), `Accept` content negotiation, and the error model (429 with `Retry-After`, distinct problem `type`s); and fixed the omit-empty rule so `services` is always present, empty when none.
+* Made a scoped, capability-first request the expected shape and full-catalog enumeration a privileged operation. A provider returns a minimal slice for a stated need and may restrict full enumeration, which limits the reconnaissance value of a single request.
 * Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (the client derives that from the service descriptor and Rich Authorization Requests type metadata), and `mcp` services are generally scopable only at server granularity.
 * Added a Relationship to Other Work entry distinguishing Agentic Resource Discovery (public, pre-invocation, publisher-signed) from this per-user, authenticated connectivity layer.
 * Moved DPoP {{RFC9449}} to normative references (it is cited with a conditional MUST), and set the Service Category registry to Expert Review while keeping Specification Required for the protocol-affecting registries.
