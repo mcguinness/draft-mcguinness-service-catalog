@@ -884,9 +884,9 @@ Table of Contents
       link (Section 5.5), if also present, points to the same image.
 
    connections:  REQUIRED.  A non-empty array of *connection objects*
-      (see Section 5.6), each describing one way the client can obtain
-      credentials to call the service.  The Catalog Provider SHOULD
-      order the array from most to least preferred.
+      (see Section 5.6), each describing one way the client can connect
+      to the service.  The Catalog Provider SHOULD order the array from
+      most to least preferred.
 
    type:  OPTIONAL.  A string giving the service type, a value from the
       registry in Section 5.3.  If omitted, the type is http.
@@ -1580,34 +1580,34 @@ Table of Contents
    the client's requests to the service on the client's behalf.  This
    narrows the client's exposure: a compromised client does not yield
    the long-lived service credential itself.  It does not eliminate
-   exposure.  Where the client authenticates to an explicit endpoint
+   exposure.  Where the client authenticates to an explicit proxy uri
    (below), that credential fronts every credential the intermediary
-   will inject and is therefore itself sensitive; and the policy by
-   which the intermediary decides which credential to attach to which
-   request is an out-of-band trust assumption the client depends on (a
-   client that can steer its own destination could otherwise induce
-   injection toward an unintended target).  It is compatible with the
-   audience-binding and no-passthrough rules of Section 9.4, which the
+   will inject and is therefore itself sensitive.  The policy by which
+   the intermediary decides which credential to attach to which request
+   is an out-of-band trust assumption the client depends on (a client
+   that can steer its own destination could otherwise induce injection
+   toward an unintended target).  It is compatible with the audience-
+   binding and no-passthrough rules of Section 9.4, which the
    intermediary (acting as the client to the service) observes.
 
    Profile-specific members:
 
    proxy:  OPTIONAL.  A JSON object describing the intermediary.  It MAY
-      contain endpoint (a URI through which the client routes its
-      requests to the service).  When endpoint is absent, the
-      intermediary operates transparently on the client's egress and is
-      configured out of band.
+      contain uri (a URI through which the client routes its requests to
+      the service).  When uri is absent, the intermediary operates
+      transparently on the client's egress and is configured out of
+      band.
 
-   When the client routes through an explicit endpoint, the connection's
-   present member (Section 5.6) describes how the client authenticates
-   to the _intermediary_ (for example, with its own bearer token or a
-   sentinel), not to the service.  The service-facing credential is held
-   and presented solely by the intermediary, and the catalog MUST NOT
-   convey it.  Because a proxy_injected connection has no
-   authorization_server, it cannot be re-anchored using the OAuth
+   When the client routes through an explicit proxy uri, the
+   connection's present member (Section 5.6) describes how the client
+   authenticates to the _intermediary_ (for example, with its own bearer
+   token or a sentinel), not to the service.  The service-facing
+   credential is held and presented solely by the intermediary, and the
+   catalog MUST NOT convey it.  Because a proxy_injected connection has
+   no authorization_server, it cannot be re-anchored using the OAuth
    profile's resource metadata checks.  The client MUST establish trust
-   in the intermediary's endpoint and identity from a trusted source
-   before routing requests through it.
+   in the intermediary's uri and identity from a trusted source before
+   routing requests through it.
 
 5.7.4.  Single Sign-On Profile
 
@@ -1981,6 +1981,11 @@ Table of Contents
        document, an A2A Agent Card, or an MCP Server Card), for example,
        as a bearer token [RFC6750], an API key, or a client certificate.
 
+   For a launch-style connection (sso or portal; see Section 5.7.4),
+   steps 4 through 6 do not apply.  After the step 3 trust gate, the
+   client, or the user agent it drives, opens the connection's
+   launch_uri to begin sign-on, and holds no credential.
+
    This specification does not define any new credential issuance
    mechanism.  Each connection profile parameterizes an existing
    mechanism or deployment model.
@@ -2277,8 +2282,13 @@ Table of Contents
       credential or user data.
 
    *  proxy_injected (Section 5.7.3): the client establishes trust in
-      the intermediary's endpoint and identity, and relies on the
+      the intermediary's uri and identity, and relies on the
       intermediary's credential-selection policy.
+
+   *  Launch-style connections, sso and portal (Section 5.7.4,
+      Section 5.7.5): the client establishes the identity of the
+      application and of the launch_uri from a trusted source before
+      opening it.
 
    *  Audience-only token_exchange and id_jag (Section 5.7.1): the
       client independently trusts the connection's authorization_server
@@ -2850,6 +2860,14 @@ Document History
       id), added a logo_uri member, and renamed the human-readable
       catalog and group fields to display_name and group_display_name.
       The OpenAPI apiKey name inside present is unaffected.
+
+   *  Propagated launch-style access through the credential-centric
+      text: the connecting procedure now skips the credential steps for
+      sso/portal and opens launch_uri, the connections member describes
+      connecting rather than obtaining credentials, and the autonomous-
+      client trust list includes launch-style connections.  Renamed the
+      proxy object's endpoint member to uri to avoid overloading the
+      service endpoint name.
 
    *  Added launch-style connection profiles so the catalog is a
       superset of an enterprise single sign-on application catalog.  The
