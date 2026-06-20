@@ -4,8 +4,8 @@
 
 Network Working Group                                      K. McGuinness
 Internet-Draft                                               Independent
-Intended status: Standards Track                            18 June 2026
-Expires: 20 December 2026
+Intended status: Standards Track                            20 June 2026
+Expires: 22 December 2026
 
 
                 Per-User Service Connectivity Discovery
@@ -46,7 +46,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 20 December 2026.
+   This Internet-Draft will expire on 22 December 2026.
 
 Copyright Notice
 
@@ -164,6 +164,17 @@ Table of Contents
    aggregate services across multiple resources, authorization servers,
    authentication schemes, and administrative domains.
 
+   This role is not greenfield.  An enterprise identity provider already
+   maintains a per-user catalog of the services a user can reach.  It is
+   the single sign-on application catalog behind the user's app launcher
+   or dashboard, built from the same authorization decisions used here.
+   Today that catalog is human-facing.  It tells an agent neither how to
+   connect nor whether a connection can be made without interaction.
+   This document makes that existing per-user catalog machine-readable
+   and connection-aware.  An identity provider is therefore a natural
+   Catalog Provider, and can expose what it already knows rather than
+   build a new inventory.
+
    It is useful to see this as the reachability analogue of OAuth 2.0
    Authorization Server Metadata [RFC8414]: where RFC 8414 lets a client
    discover one authorization server per issuer and its authorization
@@ -193,6 +204,19 @@ Table of Contents
    pre-provisioned credentials, and future agent credential models
    without inventing a new object per mechanism.  OAuth 2.0 is not
    assumed.
+
+   This yields the document's guiding principle: *the core catalog is
+   small, and everything mechanism-specific is a separately evolvable
+   profile.* The core is the per-user enumeration of services and, for
+   each, its connection methods and per-connection status.  How a
+   credential is acquired and presented is defined by a connection
+   profile.  This document specifies the core together with an initial
+   set of profiles.  Profiles, service types, categories, and link
+   relations are each extension points behind an IANA registry.  They
+   evolve independently of the core.  A Catalog Provider and client
+   interoperate on the core and on the profiles they share.  The
+   mandatory surface an implementer must adopt stays small even as the
+   breadth below grows.
 
    Beyond this, the design is deliberately general:
 
@@ -231,11 +255,24 @@ Table of Contents
    planning any action.  This makes it primarily an agent-facing
    mechanism, though nothing restricts its use to agents.
 
-   Discovery and planning are autonomous; connecting is not
-   unconditionally so.  An agent can plan entirely from the catalog, but
-   connecting to a service the user has no prior relationship with
-   requires a trust anchor (an explicit policy, configuration, or user
-   confirmation), as the security considerations require (Section 9.6).
+   The value proposition is therefore precise.  Without a human in the
+   loop, an agent can:
+
+   *  reconnect to services the user has already linked (status of
+      connected), avoiding a per-service authorization failure and retry
+      on each one,
+
+   *  plan across the set of reachable services for a user's goal, and
+
+   *  request only the intent-scoped access a task needs (Section 7).
+
+   These are the autonomous capabilities.  Automated connection to a
+   service the user has no prior relationship with is different.  It
+   requires a trust anchor.  That anchor is a prior relationship the
+   client can corroborate, a local policy, or user confirmation
+   (Section 9.6).  The catalog makes discovery and planning fully
+   autonomous.  It makes connection autonomous only within an
+   established trust boundary, and makes that boundary explicit.
 
 1.2.  What the Catalog Is Not
 
@@ -420,13 +457,19 @@ Table of Contents
       required, the Catalog Provider MUST return an HTTP 401
       (Unauthorized) response.
 
-   A client MAY constrain the response with the filtering query
-   parameters in Section 4.2.1, and page through a large result with the
-   pagination query parameters in Section 4.2.2.  A Catalog Provider
-   MUST ignore any query parameter it does not support or understand.  A
-   provider that does support a parameter applies it as specified,
-   including rejecting an invalid limit or cursor (Section 4.2.2).  All
-   query parameter names and values are case sensitive.
+   A client SHOULD scope its request to the capability or service it
+   needs, using the filtering query parameters in Section 4.2.1, rather
+   than retrieve the user's entire catalog.  A scoped request, for
+   example by category or by a search term, is the primary and expected
+   use.  A Catalog Provider MAY require a request to be scoped, and MAY
+   restrict unscoped, full-catalog enumeration to clients specifically
+   authorized for it (Section 9.2).  A client MAY page through a large
+   result with the pagination query parameters in Section 4.2.2.  A
+   Catalog Provider MUST ignore any query parameter it does not support
+   or understand.  A provider that does support a parameter applies it
+   as specified, including rejecting an invalid limit or cursor
+   (Section 4.2.2).  All query parameter names and values are case
+   sensitive.
 
    The following is an example request for the user's email services:
 
@@ -1969,10 +2012,17 @@ Table of Contents
 
    *  The Catalog Provider MUST require authentication and return only
       services and connection methods the authenticated user and client
-      are authorized to use, and SHOULD apply data minimization by
-      default rather than relying on the client to request a narrower
-      view (filters are optional and a provider MAY ignore them; see
-      Section 4.2.1).
+      are authorized to use.  This authorization filtering applies to
+      every request, whatever its scope.
+
+   *  A scoped request, by capability or search term, is the expected
+      shape, and the Catalog Provider SHOULD return only the services
+      responsive to it.  A full enumeration of a user's reachable set is
+      the highest-value reconnaissance result, so the Catalog Provider
+      SHOULD treat unscoped, full-catalog enumeration as a privileged
+      operation.  It MAY require a scoping parameter, and MAY restrict
+      full enumeration to clients specifically authorized for it
+      (Section 4.2).
 
    *  The Catalog Provider SHOULD apply rate limiting (signaled with
       HTTP 429 and Retry-After; see Section 4.3.3), SHOULD monitor for
@@ -2575,6 +2625,15 @@ Document History
       repositioned around per-user, authorization-aware connectivity
       discovery.
 
+   *  Grounded the Catalog Provider in the existing enterprise single
+      sign-on application catalog, with an identity provider as a
+      natural provider, and stated the small-core and separately-
+      evolvable-profiles principle as a front-door design statement.
+      Made the autonomy value proposition precise.  An agent
+      autonomously discovers, plans, and reconnects to already-linked
+      services, while automated connection to an unfamiliar service
+      requires prior trust, local policy, or user confirmation.
+
    *  Restructured connection methods into a core connection object plus
       connection profiles (oauth, pre_authorized, proxy_injected, none),
       with profile-specific acquisition types for oauth (token_exchange,
@@ -2622,6 +2681,12 @@ Document History
       snapshot), Accept content negotiation, and the error model (429
       with Retry-After, distinct problem types); and fixed the omit-
       empty rule so services is always present, empty when none.
+
+   *  Made a scoped, capability-first request the expected shape and
+      full-catalog enumeration a privileged operation.  A provider
+      returns a minimal slice for a stated need and may restrict full
+      enumeration, which limits the reconnaissance value of a single
+      request.
 
    *  Reframed the intent section: the catalog provides candidate
       services and an access ceiling, not the intent-to-minimal-grant
