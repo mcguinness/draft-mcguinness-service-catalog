@@ -167,7 +167,7 @@ The mandatory core is small. A Catalog Provider and client interoperate using on
 
 * an authenticated Service Catalog Endpoint that returns a catalog for the authenticated user ({{catalog-request}})
 * a catalog with a `services` array ({{catalog-object}})
-* per service: an `id`, a `name`, an optional `type` (default `http`), an optional `endpoint`, optional `links`, and a non-empty `connections` array ({{service-object}})
+* per service: an `id`, a human-readable `display_name`, an optional machine-readable `name`, an optional `type` (default `http`), an optional `endpoint`, optional `links`, and a non-empty `connections` array ({{service-object}})
 * per connection: a `profile`, a per-connection availability `status`, and the members that profile defines ({{connection-object}})
 
 A connection profile (such as `oauth`) supplies how a credential is acquired and presented. A referenced descriptor (an OpenAPI document, MCP Server Card, or A2A Agent Card) supplies the service's capabilities. The catalog composes these. It does not restate them.
@@ -294,7 +294,7 @@ id:
 : A service identifier (see the `id` member in {{service-object}}). Only the service with the given identifier is returned. MAY be repeated (OR). This supports refreshing one or more already-known services.
 
 q:
-: A free-text search string. The Catalog Provider MAY use this value to match services by name, description, or other provider-defined criteria.
+: A free-text search string. The Catalog Provider MAY use this value to match services by `display_name`, `description`, or other provider-defined criteria.
 
 Filtering selects whole service objects. The `connections` array of a returned service is not pruned to the connections that matched. A `status` or `profile` filter is evaluated against each connection's effective status or profile; the effective status is the default `available` when `status` is omitted (see {{connection-object}}).
 
@@ -407,7 +407,7 @@ $schema:
 services:
 : REQUIRED. An array of **service objects** (see {{service-object}}), each describing a service available to the user. If the user has access to no services, this member is an empty array.
 
-name:
+display_name:
 : OPTIONAL. A string giving a human-readable name for the catalog.
 
 description:
@@ -438,8 +438,14 @@ uid:
 
     It is distinct from `endpoint` (the network location the client calls) and from a connection's `resource` (the resource indicator {{RFC8707}}).
 
+display_name:
+: REQUIRED. A string giving a human-readable name for the service, suitable for display to an end user (for example, in a service picker). It MAY be localized and MAY change over time.
+
 name:
-: REQUIRED. A string giving a human-readable name for the service, suitable for display to an end user (for example, in a service picker).
+: OPTIONAL. A stable, machine-readable name for the service: a slug an agent, command-line tool, or configuration can refer to, such as `example-mail`. It is distinct from the opaque, provider-assigned `id` (a correlation handle) and from the human-readable `display_name`. Where present, it SHOULD be stable across catalog requests.
+
+logo_uri:
+: OPTIONAL. A URI of an image to display for the service, for example in a service picker or application launcher. An `icon` link ({{link-object}}), if also present, points to the same image.
 
 connections:
 : REQUIRED. A non-empty array of **connection objects** (see {{connection-object}}), each describing one way the client can obtain credentials to call the service. The Catalog Provider SHOULD order the array from most to least preferred.
@@ -474,8 +480,8 @@ tenant:
 group:
 : OPTIONAL. A string giving a stable identifier shared by all service objects that are instances or tenants of the same logical service, so a client can group them (for example, in a picker). Service objects in the same group are otherwise independent: each has its own `id`, `endpoint`, `connections`, and per-user state.
 
-group_name:
-: OPTIONAL. A string giving a human-readable name for the `group`, suitable as a heading when a client presents the grouped instances or tenants together. Service objects sharing a `group` SHOULD carry the same `group_name`.
+group_display_name:
+: OPTIONAL. A string giving a human-readable name for the `group`, suitable as a heading when a client presents the grouped instances or tenants together. Service objects sharing a `group` SHOULD carry the same `group_display_name`.
 
 The service object intentionally carries no authentication-scheme-specific members. Values such as the authorization server, scopes, and resource indicator are properties of a particular authentication scheme, so they appear on the relevant connection object ({{connection-object}}) rather than on the service. A service that supports more than one authentication scheme has more than one connection object, each carrying the values for its scheme.
 
@@ -740,7 +746,7 @@ The simplest useful catalog is one HTTP service with one OAuth connection. The c
       "services": [
         {
           "id": "mail",
-          "name": "Example Mail",
+          "display_name": "Example Mail",
           "endpoint": "https://api.example.com/mail",
           "connections": [
             {
@@ -768,12 +774,14 @@ The following is a non-normative example response showing five services: an HTTP
 
     {
       "$schema": "https://example.com/schemas/service-catalog.json",
-      "name": "Example Workspace",
+      "display_name": "Example Workspace",
       "updated": "2026-06-16T18:00:00Z",
       "services": [
         {
           "id": "mail",
-          "name": "Example Mail",
+          "display_name": "Example Mail",
+          "name": "example-mail",
+          "logo_uri": "https://example.com/icons/mail.png",
           "type": "http",
           "categories": ["email"],
           "endpoint": "https://api.example.com/mail",
@@ -807,7 +815,7 @@ The following is a non-normative example response showing five services: an HTTP
         },
         {
           "id": "tickets",
-          "name": "Support Tickets (MCP)",
+          "display_name": "Support Tickets (MCP)",
           "type": "mcp",
           "categories": ["ticketing"],
           "endpoint": "https://mcp.example.com/mcp",
@@ -829,7 +837,7 @@ The following is a non-normative example response showing five services: an HTTP
         },
         {
           "id": "calendar",
-          "name": "Calendar API",
+          "display_name": "Calendar API",
           "categories": ["calendar"],
           "endpoint": "https://api.calendar.example",
           "connections": [
@@ -844,7 +852,7 @@ The following is a non-normative example response showing five services: an HTTP
         },
         {
           "id": "scheduler",
-          "name": "Scheduler Agent",
+          "display_name": "Scheduler Agent",
           "type": "a2a",
           "categories": ["calendar"],
           "endpoint": "https://agent.example/a2a",
@@ -867,7 +875,7 @@ The following is a non-normative example response showing five services: an HTTP
         },
         {
           "id": "hr",
-          "name": "HR Portal",
+          "display_name": "HR Portal",
           "endpoint": "https://hr.example.com",
           "connections": [
             {
@@ -888,9 +896,9 @@ A logical service the user can reach as more than one instance or tenant is retu
     "services": [
       {
         "id": "saas-dev",
-        "name": "SaaS Example (Dev)",
+        "display_name": "SaaS Example (Dev)",
         "group": "saas-example",
-        "group_name": "SaaS Example",
+        "group_display_name": "SaaS Example",
         "tenant": "dev",
         "endpoint": "https://api.saas.example",
         "connections": [
@@ -906,9 +914,9 @@ A logical service the user can reach as more than one instance or tenant is retu
       },
       {
         "id": "saas-staging",
-        "name": "SaaS Example (Staging)",
+        "display_name": "SaaS Example (Staging)",
         "group": "saas-example",
-        "group_name": "SaaS Example",
+        "group_display_name": "SaaS Example",
         "tenant": "staging",
         "endpoint": "https://api.saas.example",
         "connections": [
@@ -924,7 +932,7 @@ A logical service the user can reach as more than one instance or tenant is retu
       },
       {
         "id": "mail",
-        "name": "Example Mail",
+        "display_name": "Example Mail",
         "categories": ["email"],
         "endpoint": "https://api.example.com/mail",
         "connections": [
@@ -960,7 +968,7 @@ A logical service the user can reach as more than one instance or tenant is retu
 
 After retrieving the catalog, a client connects to a service by selecting a service object and one of its connection objects, and then executing the corresponding connection profile. For planning, the connection's `status` is the primary signal: whether a credential already exists (`connected`), can be obtained without user interaction (`available`), or requires consent (`consent_required`). The acquisition `profile` and any profile-specific `type` are the mechanism details the client uses once a connection is chosen. The general procedure is:
 
-1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
+1. Select a service (for example, by `category`, `tags`, or by presenting `display_name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
 3. Apply the connection's trust gate before contacting the authorization server. For the `oauth` profile, re-anchor by confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for the `resource` ({{profile-oauth}}). For other profiles, apply that profile's trust requirements ({{connection-profiles}}).
 4. Determine the client identity from `client_registration`. Do this only after the trust gate in the previous step, so that client metadata or a client-id URL is not disclosed to an unverified authorization server.
@@ -1019,7 +1027,7 @@ User-Managed Access (UMA 2.0) {{UMA2}} lets a resource owner share resources wit
 
 Agent and tool descriptors (A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and machine-readable API descriptions such as OpenAPI {{OPENAPI}}) describe a single service instance, including its capabilities and how it authenticates callers. The catalog references these (via `links`) rather than duplicating them, and adds the per-user authorization context they lack.
 
-APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `name`, `description`, `endpoint` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
+APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `display_name`, `description`, `endpoint` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
 
 Agentic Resource Discovery {{ARD}} defines a public, cross-organization discovery layer for agentic resources: an organization publishes a static catalog at a well-known location on its domain, registries crawl and index it, and an agent finds capabilities by intent and verifies the publisher's cryptographic identity before connecting. It operates at a different, complementary layer. It is public, crawlable, and pre-invocation, anchoring trust in a signed publisher identity and delegating authentication to each artifact's native protocol; the catalog defined here is per-user, authenticated, and (for the reasons in {{privacy-considerations}}) deliberately not crawlable, anchoring trust in the user's identity provider and in re-anchoring each connection to the resource's metadata ({{profile-oauth}}), and contributing the layer the former leaves open: which services a specific user and client can reach, and how each connection's credential is acquired and presented. A service object's optional `uid` ({{service-object}}) lets a client correlate one service across the two.
 
@@ -1248,6 +1256,7 @@ Reference: This document.
 
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.
 * Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
+* Split service identity into a human-readable `display_name` and an optional machine-readable `name` (a slug, distinct from the opaque `id`), added a `logo_uri` member, and renamed the human-readable catalog and group fields to `display_name` and `group_display_name`. The OpenAPI `apiKey` `name` inside `present` is unaffected.
 * Added launch-style connection profiles so the catalog is a superset of an enterprise single sign-on application catalog. The `sso` profile (with an "SSO Service Catalog Connection Type" registry seeded with `saml`, `oidc`, and `ws_fed`) carries a `launch_uri`, where `oidc` is first class via third-party-initiated login. The `portal` profile covers launch-only bookmark applications. Generalized the connection-method definition to cover launch-style access, in which the identity provider federates a browser session and the client holds no credential.
 * Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
