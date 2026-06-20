@@ -448,7 +448,7 @@ logo_uri:
 : OPTIONAL. A URI of an image to display for the service, for example in a service picker or application launcher. An `icon` link ({{link-object}}), if also present, points to the same image.
 
 connections:
-: REQUIRED. A non-empty array of **connection objects** (see {{connection-object}}), each describing one way the client can obtain credentials to call the service. The Catalog Provider SHOULD order the array from most to least preferred.
+: REQUIRED. A non-empty array of **connection objects** (see {{connection-object}}), each describing one way the client can connect to the service. The Catalog Provider SHOULD order the array from most to least preferred.
 
 type:
 : OPTIONAL. A string giving the service type, a value from the registry in {{service-types}}. If omitted, the type is `http`.
@@ -698,14 +698,14 @@ Before presenting a pre-provisioned credential to a service's `endpoint`, the cl
 
 ### Proxy-Injected Credential Profile {#profile-proxy-injected}
 
-The `proxy_injected` profile describes a connection in which the client never obtains or holds the service credential. A trusted intermediary (an egress proxy or gateway) attaches the credential to the client's requests to the service on the client's behalf. This narrows the client's exposure: a compromised client does not yield the long-lived service credential itself. It does not eliminate exposure. Where the client authenticates to an explicit `endpoint` (below), that credential fronts every credential the intermediary will inject and is therefore itself sensitive; and the policy by which the intermediary decides which credential to attach to which request is an out-of-band trust assumption the client depends on (a client that can steer its own destination could otherwise induce injection toward an unintended target). It is compatible with the audience-binding and no-passthrough rules of {{audience-binding}}, which the intermediary (acting as the client to the service) observes.
+The `proxy_injected` profile describes a connection in which the client never obtains or holds the service credential. A trusted intermediary (an egress proxy or gateway) attaches the credential to the client's requests to the service on the client's behalf. This narrows the client's exposure: a compromised client does not yield the long-lived service credential itself. It does not eliminate exposure. Where the client authenticates to an explicit proxy `uri` (below), that credential fronts every credential the intermediary will inject and is therefore itself sensitive. The policy by which the intermediary decides which credential to attach to which request is an out-of-band trust assumption the client depends on (a client that can steer its own destination could otherwise induce injection toward an unintended target). It is compatible with the audience-binding and no-passthrough rules of {{audience-binding}}, which the intermediary (acting as the client to the service) observes.
 
 Profile-specific members:
 
 proxy:
-: OPTIONAL. A JSON object describing the intermediary. It MAY contain `endpoint` (a URI through which the client routes its requests to the service). When `endpoint` is absent, the intermediary operates transparently on the client's egress and is configured out of band.
+: OPTIONAL. A JSON object describing the intermediary. It MAY contain `uri` (a URI through which the client routes its requests to the service). When `uri` is absent, the intermediary operates transparently on the client's egress and is configured out of band.
 
-When the client routes through an explicit `endpoint`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service. The service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored using the OAuth profile's resource metadata checks. The client MUST establish trust in the intermediary's `endpoint` and identity from a trusted source before routing requests through it.
+When the client routes through an explicit proxy `uri`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service. The service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored using the OAuth profile's resource metadata checks. The client MUST establish trust in the intermediary's `uri` and identity from a trusted source before routing requests through it.
 
 ### Single Sign-On Profile {#profile-sso}
 
@@ -980,6 +980,8 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 5. Obtain the credential according to the connection `profile` and profile-specific `type` (see {{connection-profiles}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth connection types.
 6. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card), for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
+For a launch-style connection (`sso` or `portal`; see {{profile-sso}}), steps 4 through 6 do not apply. After the step 3 trust gate, the client, or the user agent it drives, opens the connection's `launch_uri` to begin sign-on, and holds no credential.
+
 This specification does not define any new credential issuance mechanism. Each connection profile parameterizes an existing mechanism or deployment model.
 
 # Intent-Based Use and Resource Discovery {#intent}
@@ -1081,7 +1083,8 @@ A client trusts the Catalog Provider to enumerate services, endpoints, and conne
 Several connection methods are safe only when the client can establish trust from a source other than the catalog. These requirements are stated with each method; this section collects them so that an implementer of an autonomous client (one with no human in the loop and typically no site-specific policy) can see the floor at a glance:
 
 * `pre_authorized` ({{profile-pre-authorized}}) and `none` ({{profile-none}}): the client establishes the binding between the service's `endpoint` and the intended service from a trusted source before sending any credential or user data.
-* `proxy_injected` ({{profile-proxy-injected}}): the client establishes trust in the intermediary's `endpoint` and identity, and relies on the intermediary's credential-selection policy.
+* `proxy_injected` ({{profile-proxy-injected}}): the client establishes trust in the intermediary's `uri` and identity, and relies on the intermediary's credential-selection policy.
+* Launch-style connections, `sso` and `portal` ({{profile-sso}}, {{profile-portal}}): the client establishes the identity of the application and of the `launch_uri` from a trusted source before opening it.
 * Audience-only `token_exchange` and `id_jag` ({{profile-oauth}}): the client independently trusts the connection's `authorization_server` before presenting a `subject_token` or assertion.
 * Dynamic client registration ({{confused-deputy}}): the client gates registration on a trust policy.
 * Any connection whose relationship the client cannot independently corroborate ({{profile-oauth}}): the client independently confirms the resource, regardless of `status`. Catalog-asserted `connected` does not by itself corroborate a relationship.
@@ -1257,6 +1260,7 @@ Reference: This document.
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.
 * Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
 * Split service identity into a human-readable `display_name` and an optional machine-readable `name` (a slug, distinct from the opaque `id`), added a `logo_uri` member, and renamed the human-readable catalog and group fields to `display_name` and `group_display_name`. The OpenAPI `apiKey` `name` inside `present` is unaffected.
+* Propagated launch-style access through the credential-centric text: the connecting procedure now skips the credential steps for `sso`/`portal` and opens `launch_uri`, the `connections` member describes connecting rather than obtaining credentials, and the autonomous-client trust list includes launch-style connections. Renamed the `proxy` object's `endpoint` member to `uri` to avoid overloading the service `endpoint` name.
 * Added launch-style connection profiles so the catalog is a superset of an enterprise single sign-on application catalog. The `sso` profile (with an "SSO Service Catalog Connection Type" registry seeded with `saml`, `oidc`, and `ws_fed`) carries a `launch_uri`, where `oidc` is first class via third-party-initiated login. The `portal` profile covers launch-only bookmark applications. Generalized the connection-method definition to cover launch-style access, in which the identity provider federates a browser session and the client holds no credential.
 * Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
