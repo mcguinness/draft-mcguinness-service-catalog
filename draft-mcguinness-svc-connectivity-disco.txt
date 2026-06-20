@@ -254,7 +254,8 @@ Table of Contents
 
    *  a catalog with a services array (Section 5.1)
 
-   *  per service: an id, a name, an optional type (default http), an
+   *  per service: an id, a human-readable display_name, an optional
+      machine-readable name, an optional type (default http), an
       optional endpoint, optional links, and a non-empty connections
       array (Section 5.2)
 
@@ -556,8 +557,8 @@ Table of Contents
       services.
 
    q:  A free-text search string.  The Catalog Provider MAY use this
-      value to match services by name, description, or other provider-
-      defined criteria.
+      value to match services by display_name, description, or other
+      provider-defined criteria.
 
    Filtering selects whole service objects.  The connections array of a
    returned service is not pruned to the connections that matched.  A
@@ -809,8 +810,8 @@ Table of Contents
       Section 5.2), each describing a service available to the user.  If
       the user has access to no services, this member is an empty array.
 
-   name:  OPTIONAL.  A string giving a human-readable name for the
-      catalog.
+   display_name:  OPTIONAL.  A string giving a human-readable name for
+      the catalog.
 
    description:  OPTIONAL.  A string giving a human-readable description
       of the catalog.
@@ -867,9 +868,20 @@ Table of Contents
       calls) and from a connection's resource (the resource indicator
       [RFC8707]).
 
-   name:  REQUIRED.  A string giving a human-readable name for the
-      service, suitable for display to an end user (for example, in a
-      service picker).
+   display_name:  REQUIRED.  A string giving a human-readable name for
+      the service, suitable for display to an end user (for example, in
+      a service picker).  It MAY be localized and MAY change over time.
+
+   name:  OPTIONAL.  A stable, machine-readable name for the service: a
+      slug an agent, command-line tool, or configuration can refer to,
+      such as example-mail.  It is distinct from the opaque, provider-
+      assigned id (a correlation handle) and from the human-readable
+      display_name.  Where present, it SHOULD be stable across catalog
+      requests.
+
+   logo_uri:  OPTIONAL.  A URI of an image to display for the service,
+      for example in a service picker or application launcher.  An icon
+      link (Section 5.5), if also present, points to the same image.
 
    connections:  REQUIRED.  A non-empty array of *connection objects*
       (see Section 5.6), each describing one way the client can obtain
@@ -923,10 +935,10 @@ Table of Contents
       Service objects in the same group are otherwise independent: each
       has its own id, endpoint, connections, and per-user state.
 
-   group_name:  OPTIONAL.  A string giving a human-readable name for the
-      group, suitable as a heading when a client presents the grouped
-      instances or tenants together.  Service objects sharing a group
-      SHOULD carry the same group_name.
+   group_display_name:  OPTIONAL.  A string giving a human-readable name
+      for the group, suitable as a heading when a client presents the
+      grouped instances or tenants together.  Service objects sharing a
+      group SHOULD carry the same group_display_name.
 
    The service object intentionally carries no authentication-scheme-
    specific members.  Values such as the authorization server, scopes,
@@ -1682,7 +1694,7 @@ Table of Contents
      "services": [
        {
          "id": "mail",
-         "name": "Example Mail",
+         "display_name": "Example Mail",
          "endpoint": "https://api.example.com/mail",
          "connections": [
            {
@@ -1717,12 +1729,14 @@ Table of Contents
 
    {
      "$schema": "https://example.com/schemas/service-catalog.json",
-     "name": "Example Workspace",
+     "display_name": "Example Workspace",
      "updated": "2026-06-16T18:00:00Z",
      "services": [
        {
          "id": "mail",
-         "name": "Example Mail",
+         "display_name": "Example Mail",
+         "name": "example-mail",
+         "logo_uri": "https://example.com/icons/mail.png",
          "type": "http",
          "categories": ["email"],
          "endpoint": "https://api.example.com/mail",
@@ -1756,7 +1770,7 @@ Table of Contents
        },
        {
          "id": "tickets",
-         "name": "Support Tickets (MCP)",
+         "display_name": "Support Tickets (MCP)",
          "type": "mcp",
          "categories": ["ticketing"],
          "endpoint": "https://mcp.example.com/mcp",
@@ -1778,7 +1792,7 @@ Table of Contents
        },
        {
          "id": "calendar",
-         "name": "Calendar API",
+         "display_name": "Calendar API",
          "categories": ["calendar"],
          "endpoint": "https://api.calendar.example",
          "connections": [
@@ -1793,7 +1807,7 @@ Table of Contents
        },
        {
          "id": "scheduler",
-         "name": "Scheduler Agent",
+         "display_name": "Scheduler Agent",
          "type": "a2a",
          "categories": ["calendar"],
          "endpoint": "https://agent.example/a2a",
@@ -1816,7 +1830,7 @@ Table of Contents
        },
        {
          "id": "hr",
-         "name": "HR Portal",
+         "display_name": "HR Portal",
          "endpoint": "https://hr.example.com",
          "connections": [
            {
@@ -1843,9 +1857,9 @@ Table of Contents
    "services": [
      {
        "id": "saas-dev",
-       "name": "SaaS Example (Dev)",
+       "display_name": "SaaS Example (Dev)",
        "group": "saas-example",
-       "group_name": "SaaS Example",
+       "group_display_name": "SaaS Example",
        "tenant": "dev",
        "endpoint": "https://api.saas.example",
        "connections": [
@@ -1861,9 +1875,9 @@ Table of Contents
      },
      {
        "id": "saas-staging",
-       "name": "SaaS Example (Staging)",
+       "display_name": "SaaS Example (Staging)",
        "group": "saas-example",
-       "group_name": "SaaS Example",
+       "group_display_name": "SaaS Example",
        "tenant": "staging",
        "endpoint": "https://api.saas.example",
        "connections": [
@@ -1879,7 +1893,7 @@ Table of Contents
      },
      {
        "id": "mail",
-       "name": "Example Mail",
+       "display_name": "Example Mail",
        "categories": ["email"],
        "endpoint": "https://api.example.com/mail",
        "connections": [
@@ -1923,7 +1937,7 @@ Table of Contents
    client uses once a connection is chosen.  The general procedure is:
 
    1.  Select a service (for example, by category, tags, or by
-       presenting name and description to the user).  For an mcp
+       presenting display_name and description to the user).  For an mcp
        service, the client MAY first fetch the MCP Server Card
        (Section 5.3.2) to evaluate the server's capabilities.
 
@@ -2108,9 +2122,9 @@ Table of Contents
 
    APIs.json [APISJSON] provides a public "sitemap for APIs" with no
    per-user authorization context.  A service object reuses its
-   discoverability model: name, description, endpoint (its baseURL),
-   tags, and links (its typed properties).  A Catalog Provider MAY
-   additionally serve a static APIs.json document for tooling that
+   discoverability model: display_name, description, endpoint (its
+   baseURL), tags, and links (its typed properties).  A Catalog Provider
+   MAY additionally serve a static APIs.json document for tooling that
    consumes that format.  Such a document is out of scope for this
    specification.
 
@@ -2830,6 +2844,12 @@ Document History
    *  Renamed the service object's base_uri member to endpoint, a type-
       neutral name that reads correctly for http, mcp, and a2a services,
       consistent with the type-neutral core.
+
+   *  Split service identity into a human-readable display_name and an
+      optional machine-readable name (a slug, distinct from the opaque
+      id), added a logo_uri member, and renamed the human-readable
+      catalog and group fields to display_name and group_display_name.
+      The OpenAPI apiKey name inside present is unaffected.
 
    *  Added launch-style connection profiles so the catalog is a
       superset of an enterprise single sign-on application catalog.  The
