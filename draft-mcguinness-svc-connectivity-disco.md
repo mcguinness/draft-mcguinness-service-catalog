@@ -163,7 +163,7 @@ The mandatory core is small. A Catalog Provider and client interoperate using on
 
 * an authenticated Service Catalog Endpoint that returns a catalog for the authenticated user ({{catalog-request}})
 * a catalog with a `services` array ({{catalog-object}})
-* per service: an `id`, a `name`, an optional `type` (default `http`), an optional `base_uri`, optional `links`, and a non-empty `connections` array ({{service-object}})
+* per service: an `id`, a `name`, an optional `type` (default `http`), an optional `endpoint`, optional `links`, and a non-empty `connections` array ({{service-object}})
 * per connection: a `profile`, a per-connection availability `status`, and the members that profile defines ({{connection-object}})
 
 A connection profile (such as `oauth`) supplies how a credential is acquired and presented. A referenced descriptor (an OpenAPI document, MCP Server Card, or A2A Agent Card) supplies the service's capabilities. The catalog composes these. It does not restate them.
@@ -432,7 +432,7 @@ uid:
     * A `uid` is descriptive only and carries no authority. A client MUST NOT treat a shared `uid` as evidence that two entries are the same service, and MUST NOT infer trust or sameness from a `uid` outside the apparent issuer's control, without applying the trust checks it applies to any catalog entry ({{connection-object}}).
     * A `uid` is a stable cross-provider correlation handle and carries privacy implications ({{privacy-considerations}}).
 
-    It is distinct from `base_uri` (the network location the client calls) and from a connection's `resource` (the resource indicator {{RFC8707}}).
+    It is distinct from `endpoint` (the network location the client calls) and from a connection's `resource` (the resource indicator {{RFC8707}}).
 
 name:
 : REQUIRED. A string giving a human-readable name for the service, suitable for display to an end user (for example, in a service picker).
@@ -455,8 +455,8 @@ tags:
 links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
 
-base_uri:
-: OPTIONAL. A URI giving the primary endpoint at which the service is hosted: for an `http` service, the base URL of its API; for an `mcp` service, the MCP server endpoint. This is the network location the client calls, and is distinct from a connection's `resource` member ({{connection-object}}), which is the RFC 8707 resource indicator used when requesting a token and need not be byte-identical to `base_uri`. `base_uri` is the canonical endpoint value. A `service` link ({{link-object}}), if also present, points to the same location. A service object SHOULD carry `base_uri` unless a `service` link supplies the endpoint.
+endpoint:
+: OPTIONAL. A URI giving the network location at which the service is hosted and that the client calls. For an `http` service it is the base URL of the API. For an `mcp` service it is the MCP server endpoint. For an `a2a` service it is the agent endpoint. It is distinct from a connection's `resource` member ({{connection-object}}), the RFC 8707 resource indicator used when requesting a token, which need not be byte-identical to it. A `service` link ({{link-object}}), if present, points to the same location. A service object SHOULD carry `endpoint` unless a `service` link supplies it.
 
 mcp:
 : OPTIONAL. A JSON object present only when `type` is `mcp` (see {{type-mcp}}).
@@ -468,7 +468,7 @@ tenant:
 : OPTIONAL. A string giving a machine-readable identifier for the tenant of a multi-tenant service, when this service object represents one tenant. It is descriptive (it lets a client correlate the service, and the tokens it will obtain, with a tenant context) and aligns with the tenant identifier used in {{TOKEN-EXCHANGE-DISCOVERY}} and {{I-D.oauth-identity-assertion-authz-grant}}.
 
 group:
-: OPTIONAL. A string giving a stable identifier shared by all service objects that are instances or tenants of the same logical service, so a client can group them (for example, in a picker). Service objects in the same group are otherwise independent: each has its own `id`, `base_uri`, `connections`, and per-user state.
+: OPTIONAL. A string giving a stable identifier shared by all service objects that are instances or tenants of the same logical service, so a client can group them (for example, in a picker). Service objects in the same group are otherwise independent: each has its own `id`, `endpoint`, `connections`, and per-user state.
 
 group_name:
 : OPTIONAL. A string giving a human-readable name for the `group`, suitable as a heading when a client presents the grouped instances or tenants together. Service objects sharing a `group` SHOULD carry the same `group_name`.
@@ -485,11 +485,11 @@ The `type` member of a service object identifies the kind of service, using a va
 
 ### http {#type-http}
 
-A conventional HTTP API. The `base_uri` member is the base URL of the API. A machine-readable description (for example, an OpenAPI document) MAY be referenced with a `service-desc` link ({{link-object}}). This is the default type when `type` is omitted.
+A conventional HTTP API. The `endpoint` member is the base URL of the API. A machine-readable description (for example, an OpenAPI document) MAY be referenced with a `service-desc` link ({{link-object}}). This is the default type when `type` is omitted.
 
 ### mcp {#type-mcp}
 
-A Model Context Protocol server {{MCP-AUTHORIZATION}}. The `base_uri` member is the MCP server endpoint. A service of type `mcp` SHOULD reference the server's MCP Server Card {{MCP-SERVER-CARD}}, either with an `mcp-server-card` link ({{link-object}}) or with the `server_card_uri` member below, so that a client can learn the server's capabilities without connecting.
+A Model Context Protocol server {{MCP-AUTHORIZATION}}. Its `endpoint` is the MCP server's URL. A service of type `mcp` SHOULD reference the server's MCP Server Card {{MCP-SERVER-CARD}}, either with an `mcp-server-card` link ({{link-object}}) or with the `server_card_uri` member below, so that a client can learn the server's capabilities without connecting.
 
 A service of type `mcp` MAY include an `mcp` member, a JSON object with the following members:
 
@@ -503,7 +503,7 @@ Because MCP servers use OAuth 2.0 for authorization {{MCP-AUTHORIZATION}}, an `m
 
 ### a2a {#type-a2a}
 
-An Agent2Agent (A2A) agent {{A2A}}. The `base_uri` member is the A2A agent endpoint. A service of type `a2a` SHOULD reference the agent's A2A Agent Card, either with an `agent-card` link ({{link-object}}) or with the `agent_card_uri` member below, so that a client can learn the agent's skills and capabilities without connecting.
+An Agent2Agent (A2A) agent {{A2A}}. Its `endpoint` is the agent's URL. A service of type `a2a` SHOULD reference the agent's A2A Agent Card, either with an `agent-card` link ({{link-object}}) or with the `agent_card_uri` member below, so that a client can learn the agent's skills and capabilities without connecting.
 
 A service of type `a2a` MAY include an `a2a` member, a JSON object with the following members:
 
@@ -627,7 +627,7 @@ The OAuth values in a connection object (`authorization_server`, `resource`, `sc
 
 * When an OAuth connection has no `resource` and identifies its target solely by an authorization-server-local `audience` (`token_exchange` ({{type-token-exchange}}) or `id_jag` ({{type-id-jag}})), there is no Protected Resource Metadata to anchor against, and resource re-anchoring does not apply. The trust anchor is instead the connection's `authorization_server`, which issues and audience-restricts the resulting token. Because executing such a connection discloses a credential to that authorization server (a `subject_token` for `token_exchange`, an assertion for `id_jag`), the client MUST NOT present it unless it independently trusts that authorization server to receive it: for example, because the authorization server is the issuer of the presented token or the user's identity provider, or is permitted by a trust policy or explicit configuration ({{confused-deputy}}). Trusting the authorization server is necessary but not sufficient: a trusted server may still not be authoritative for the catalog-supplied `audience`, which the catalog alone chose. The client's local policy or configuration MUST therefore bind the specific (`authorization_server`, `audience`) pair to the intended target service before the client presents the credential; absent such a binding, the connection is not usable without user confirmation. Having obtained a token, the client SHOULD also confirm it is bound to the intended service before using it ({{type-token-exchange}}).
 
-* Re-anchoring proves that the `authorization_server` is authoritative for the `resource`. It does not prove that the `resource` (or `base_uri`) is the service the user intended: a compromised or overly broad Catalog Provider could supply a self-consistent `resource`, and could equally assert a relationship (a `status` of `connected`, or an `account`; see {{connection-object}}) for an attacker-controlled service. A catalog-asserted relationship is therefore a hint, not proof.
+* Re-anchoring proves that the `authorization_server` is authoritative for the `resource`. It does not prove that the `resource` (or `endpoint`) is the service the user intended: a compromised or overly broad Catalog Provider could supply a self-consistent `resource`, and could equally assert a relationship (a `status` of `connected`, or an `account`; see {{connection-object}}) for an attacker-controlled service. A catalog-asserted relationship is therefore a hint, not proof.
 
     Accordingly, for any connection that has, or from which the client can derive, a `resource`, the client MUST independently confirm that resource before obtaining or presenting a credential. Catalog-asserted `connected` alone does not satisfy this; the confirmation MAY instead be met by any of:
 
@@ -684,7 +684,7 @@ For silent acquisition (`token_exchange`, `id_jag`), the account is determined b
 
 The `pre_authorized` profile describes a credential the client already possesses, or can obtain through a deployment-specific secure channel (for example, a secrets manager, an enterprise configuration system, or prior provisioning), never through the catalog. The catalog only signals that this method applies and, via the connection's `present` member ({{connection-object}}), how the credential is presented. It MUST NOT include the credential itself or any pointer that would let an unauthorized party retrieve it. This profile typically has `status` of `connected`.
 
-Before presenting a pre-provisioned credential to a service's `base_uri`, the client MUST establish the binding between that `base_uri`, the credential, and the intended service from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone. Any sender-constraint requirement for such a connection is likewise conveyed out of band, since there is no OAuth protected resource metadata to discover it from.
+Before presenting a pre-provisioned credential to a service's `endpoint`, the client MUST establish the binding between that `endpoint`, the credential, and the intended service from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone. Any sender-constraint requirement for such a connection is likewise conveyed out of band, since there is no OAuth protected resource metadata to discover it from.
 
 ### Proxy-Injected Credential Profile {#profile-proxy-injected}
 
@@ -699,7 +699,7 @@ When the client routes through an explicit `endpoint`, the connection's `present
 
 ### Public Service Profile {#profile-none}
 
-The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`. Although no credential is presented, the client still sends requests, and possibly user data, to the service's `base_uri`. As with the other non-`oauth` profiles, the client MUST establish the service's identity from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone, before sending any user data.
+The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`. Although no credential is presented, the client still sends requests, and possibly user data, to the service's `endpoint`. As with the other non-`oauth` profiles, the client MUST establish the service's identity from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone, before sending any user data.
 
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
@@ -717,7 +717,7 @@ The simplest useful catalog is one HTTP service with one OAuth connection. The c
         {
           "id": "mail",
           "name": "Example Mail",
-          "base_uri": "https://api.example.com/mail",
+          "endpoint": "https://api.example.com/mail",
           "connections": [
             {
               "profile": "oauth",
@@ -752,7 +752,7 @@ The following is a non-normative example response showing four services: an HTTP
           "name": "Example Mail",
           "type": "http",
           "categories": ["email"],
-          "base_uri": "https://api.example.com/mail",
+          "endpoint": "https://api.example.com/mail",
           "links": [
             {"rel": "service-doc",
              "href": "https://dev.example.com/mail"},
@@ -786,7 +786,7 @@ The following is a non-normative example response showing four services: an HTTP
           "name": "Support Tickets (MCP)",
           "type": "mcp",
           "categories": ["ticketing"],
-          "base_uri": "https://mcp.example.com/mcp",
+          "endpoint": "https://mcp.example.com/mcp",
           "mcp": {"transport": "streamable-http"},
           "links": [
             {"rel": "mcp-server-card",
@@ -807,7 +807,7 @@ The following is a non-normative example response showing four services: an HTTP
           "id": "calendar",
           "name": "Calendar API",
           "categories": ["calendar"],
-          "base_uri": "https://api.calendar.example",
+          "endpoint": "https://api.calendar.example",
           "connections": [
             {
               "profile": "pre_authorized",
@@ -823,7 +823,7 @@ The following is a non-normative example response showing four services: an HTTP
           "name": "Scheduler Agent",
           "type": "a2a",
           "categories": ["calendar"],
-          "base_uri": "https://agent.example/a2a",
+          "endpoint": "https://agent.example/a2a",
           "a2a": {"transport": "JSONRPC"},
           "links": [
             {"rel": "agent-card",
@@ -855,7 +855,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "group": "saas-example",
         "group_name": "SaaS Example",
         "tenant": "dev",
-        "base_uri": "https://api.saas.example",
+        "endpoint": "https://api.saas.example",
         "connections": [
           {
             "profile": "oauth",
@@ -873,7 +873,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "group": "saas-example",
         "group_name": "SaaS Example",
         "tenant": "staging",
-        "base_uri": "https://api.saas.example",
+        "endpoint": "https://api.saas.example",
         "connections": [
           {
             "profile": "oauth",
@@ -889,7 +889,7 @@ A logical service the user can reach as more than one instance or tenant is retu
         "id": "mail",
         "name": "Example Mail",
         "categories": ["email"],
-        "base_uri": "https://api.example.com/mail",
+        "endpoint": "https://api.example.com/mail",
         "connections": [
           {
             "profile": "oauth",
@@ -982,7 +982,7 @@ User-Managed Access (UMA 2.0) {{UMA2}} lets a resource owner share resources wit
 
 Agent and tool descriptors (A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and machine-readable API descriptions such as OpenAPI {{OPENAPI}}) describe a single service instance, including its capabilities and how it authenticates callers. The catalog references these (via `links`) rather than duplicating them, and adds the per-user authorization context they lack.
 
-APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `name`, `description`, `base_uri` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
+APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `name`, `description`, `endpoint` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
 
 Agentic Resource Discovery {{ARD}} defines a public, cross-organization discovery layer for agentic resources: an organization publishes a static catalog at a well-known location on its domain, registries crawl and index it, and an agent finds capabilities by intent and verifies the publisher's cryptographic identity before connecting. It operates at a different, complementary layer. It is public, crawlable, and pre-invocation, anchoring trust in a signed publisher identity and delegating authentication to each artifact's native protocol; the catalog defined here is per-user, authenticated, and (for the reasons in {{privacy-considerations}}) deliberately not crawlable, anchoring trust in the user's identity provider and in re-anchoring each connection to the resource's metadata ({{profile-oauth}}), and contributing the layer the former leaves open: which services a specific user and client can reach, and how each connection's credential is acquired and presented. A service object's optional `uid` ({{service-object}}) lets a client correlate one service across the two.
 
@@ -1035,7 +1035,7 @@ A client trusts the Catalog Provider to enumerate services, endpoints, and conne
 
 Several connection methods are safe only when the client can establish trust from a source other than the catalog. These requirements are stated with each method; this section collects them so that an implementer of an autonomous client (one with no human in the loop and typically no site-specific policy) can see the floor at a glance:
 
-* `pre_authorized` ({{profile-pre-authorized}}) and `none` ({{profile-none}}): the client establishes the binding between the service's `base_uri` and the intended service from a trusted source before sending any credential or user data.
+* `pre_authorized` ({{profile-pre-authorized}}) and `none` ({{profile-none}}): the client establishes the binding between the service's `endpoint` and the intended service from a trusted source before sending any credential or user data.
 * `proxy_injected` ({{profile-proxy-injected}}): the client establishes trust in the intermediary's `endpoint` and identity, and relies on the intermediary's credential-selection policy.
 * Audience-only `token_exchange` and `id_jag` ({{profile-oauth}}): the client independently trusts the connection's `authorization_server` before presenting a `subject_token` or assertion.
 * Dynamic client registration ({{confused-deputy}}): the client gates registration on a trust policy.
@@ -1198,6 +1198,7 @@ Reference: This document.
 -01
 
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.
+* Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
 * Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
 * Made `client_registration` an explicit mode enumeration and added the `client_id_metadata_document` (CIMD) mode {{CIMD}}, in which the client uses an HTTPS URL it controls as its `client_id`.
