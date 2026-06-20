@@ -93,7 +93,9 @@ Table of Contents
        5.7.1.  OAuth Connection Profile
        5.7.2.  Pre-Authorized Credential Profile
        5.7.3.  Proxy-Injected Credential Profile
-       5.7.4.  Public Service Profile
+       5.7.4.  Single Sign-On Profile
+       5.7.5.  Portal Profile
+       5.7.6.  Public Service Profile
      5.8.  Examples
        5.8.1.  A Minimal Catalog
        5.8.2.  A Catalog Response
@@ -119,7 +121,8 @@ Table of Contents
      11.5.  Service Catalog Service Category Registry
      11.6.  Service Catalog Connection Profile Registry
      11.7.  OAuth Service Catalog Connection Type Registry
-     11.8.  Link Relation Types
+     11.8.  SSO Service Catalog Connection Type Registry
+     11.9.  Link Relation Types
    12. References
      12.1.  Normative References
      12.2.  Informative References
@@ -161,10 +164,10 @@ Table of Contents
    Endpoint*, scoped to the capability or service it needs, and receives
    the matching reachable services for that user.  Each comes with the
    descriptive metadata to understand it and one or more *connection
-   methods* to obtain credentials and call it.  The document returned is
-   the _catalog_. The server that produces it is the *Catalog Provider*,
-   which MAY aggregate services across multiple resources, authorization
-   servers, authentication schemes, and administrative domains.
+   methods* to connect to it.  The document returned is the _catalog_.
+   The server that produces it is the *Catalog Provider*, which MAY
+   aggregate services across multiple resources, authorization servers,
+   authentication schemes, and administrative domains.
 
    This role is not greenfield.  An enterprise identity provider already
    maintains a per-user catalog of the services a user can reach.  It is
@@ -186,12 +189,13 @@ Table of Contents
    *  *Discovery*: which services are reachable for this user and
       client.
 
-   *  *Acquisition*: how a credential is obtained (the connection
-      profile, and any profile-specific type: OAuth 2.0 token exchange,
-      authorization code, client credentials, the Identity Assertion
-      Authorization Grant [I-D.oauth-identity-assertion-authz-grant], a
-      pre-provisioned credential, credential injection by a trusted
-      intermediary, or none).
+   *  *Acquisition*: how a credential is obtained, or how access is
+      otherwise gained (the connection profile, and any profile-specific
+      type: OAuth 2.0 token exchange, authorization code, client
+      credentials, the Identity Assertion Authorization Grant
+      [I-D.oauth-identity-assertion-authz-grant], a pre-provisioned
+      credential, credential injection by a trusted intermediary,
+      browser single sign-on, or none).
 
    *  *Presentation*: how the credential is presented when calling the
       service, expressed as an OpenAPI [OPENAPI] security scheme (a
@@ -349,15 +353,17 @@ Table of Contents
       an HTTP API or an MCP server.  A service has a service type (see
       Section 5.3).
 
-   Connection Method:  One way a client can obtain a credential and
-      present it to call a service.  A connection method separates two
-      layers: acquisition (how the credential is obtained, given by the
-      profile and, where needed, a profile-specific type; see
-      Section 5.7) and presentation (how the credential is presented to
-      the service; see Section 5.6).  OAuth 2.0 token issuance is one
-      acquisition profile.  Others use a pre-provisioned credential,
-      delegate credential handling to a trusted intermediary, or use
-      none.
+   Connection Method:  One way a client can gain access to a service.
+      Most connection methods separate two layers: acquisition (how a
+      credential is obtained, given by the profile and, where needed, a
+      profile-specific type; see Section 5.7) and presentation (how the
+      credential is presented to the service; see Section 5.6).  A
+      launch-style method instead opens a single sign-on start URL in a
+      user agent, where the identity provider federates a session and
+      the client holds no credential (Section 5.7.4).  OAuth 2.0 token
+      issuance is one acquisition profile.  Others use a pre-provisioned
+      credential, delegate credential handling to a trusted
+      intermediary, perform browser single sign-on, or use none.
 
    All members and string values defined by this document are case
    sensitive unless otherwise stated.  All URIs are absolute URIs
@@ -1037,7 +1043,7 @@ Table of Contents
       (the service's MCP Server Card [MCP-SERVER-CARD]), and agent-card
       (the service's A2A Agent Card [A2A]).  The relation types sign-up,
       mcp-server-card, and agent-card are registered by this document
-      (see Section 11.8).
+      (see Section 11.9).
 
    href:  REQUIRED.  A URI giving the target of the link.
 
@@ -1129,7 +1135,10 @@ Table of Contents
          otherwise.  For a2a services, presentation follows the agent's
          Agent Card.  For a proxy_injected connection (Section 5.7.3),
          present describes how the client authenticates to the
-         intermediary, not to the service.
+         intermediary, not to the service.  For an sso or portal
+         connection (Section 5.7.4, Section 5.7.5), present does not
+         apply, because access is established by browser launch rather
+         than by a credential the client presents.
 
    security_scheme:  OPTIONAL.  A string naming a security scheme
       defined in the service's referenced descriptor (a key of an
@@ -1588,7 +1597,61 @@ Table of Contents
    in the intermediary's endpoint and identity from a trusted source
    before routing requests through it.
 
-5.7.4.  Public Service Profile
+5.7.4.  Single Sign-On Profile
+
+   The sso profile describes a launch-style connection: a browser single
+   sign-on into a web application, in which the identity provider
+   federates a session in a user agent and the client holds no
+   credential.  It models the entries of an enterprise single sign-on
+   application catalog.  An sso connection object MUST include a type
+   member whose value is drawn from the "SSO Service Catalog Connection
+   Type" registry (Section 11.8).  This document defines saml, oidc, and
+   ws_fed.
+
+   Profile-specific members:
+
+   launch_uri:  REQUIRED.  A URI that a user agent opens to begin single
+      sign-on.  For saml, it is the service-provider-initiated or
+      identity-provider-initiated SSO start URL.  For oidc, it is the
+      relying party's third-party-initiated login initiation URI
+      [OPENID-CONNECT], which lets an application launcher start login
+      at the relying party.  The application's federation metadata (for
+      example, SAML metadata or the OpenID Provider configuration) is
+      referenced through a describedby link (Section 5.5) rather than
+      restated.
+
+   relay_state:  OPTIONAL.  A value the launcher passes to deep-link
+      into a location within the application after sign-on.  For saml,
+      it is the SAML RelayState.  For oidc, it is the target_link_uri of
+      third-party-initiated login.
+
+   An sso connection is completed by opening launch_uri in a user agent,
+   not by the client obtaining a token.  The present member
+   (Section 5.6) does not apply.  A status of connected means the
+   application is assigned to, or provisioned for, the user.  Because
+   access is browser-mediated, an sso connection is launchable on the
+   user's behalf but is not programmatically callable by the client.
+
+   Before launch, the client MUST establish the identity of the
+   application and of the launch_uri from a trusted source
+   (Section 9.6), since the catalog alone does not prove them.
+   Federation metadata and its format are defined by the relevant single
+   sign-on specification.  This document references such metadata by URL
+   and does not restate it.
+
+5.7.5.  Portal Profile
+
+   The portal profile describes a launch-only application: a link the
+   user opens, where the application handles authentication by its own
+   means, such as a bookmarked web application or one behind a password
+   manager.  It is the catalog equivalent of a single sign-on bookmark
+   tile.  Its only member is launch_uri, a URI the user agent opens.
+   Like sso, a portal connection is browser-mediated and launchable on
+   the user's behalf, the present member does not apply, and the client
+   MUST establish the identity of the launch_uri from a trusted source
+   before launch (Section 9.6).
+
+5.7.6.  Public Service Profile
 
    The none profile describes a service that requires no client
    authentication.  This profile defines no additional members and
@@ -1640,12 +1703,13 @@ Table of Contents
 
 5.8.2.  A Catalog Response
 
-   The following is a non-normative example response showing four
+   The following is a non-normative example response showing five
    services: an HTTP service in the email category offering both token
    exchange and user consent, an MCP server referencing its Server Card,
    a service the user is already connected to via a pre-provisioned API
-   key (note the present member), and an A2A agent referencing its Agent
-   Card.
+   key (note the present member), an A2A agent referencing its Agent
+   Card, and an SSO web application launched via OpenID Connect (note
+   the launch_uri and the absence of a credential).
 
    HTTP/1.1 200 OK
    Content-Type: application/service-catalog+json
@@ -1747,6 +1811,19 @@ Table of Contents
              "authorization_server": "https://as.example.com",
              "resource": "https://agent.example/a2a",
              "client_registration": "dynamic"
+           }
+         ]
+       },
+       {
+         "id": "hr",
+         "name": "HR Portal",
+         "endpoint": "https://hr.example.com",
+         "connections": [
+           {
+             "profile": "sso",
+             "type": "oidc",
+             "status": "connected",
+             "launch_uri": "https://hr.example.com/oidc/login"
            }
          ]
        }
@@ -2180,7 +2257,7 @@ Table of Contents
    the loop and typically no site-specific policy) can see the floor at
    a glance:
 
-   *  pre_authorized (Section 5.7.2) and none (Section 5.7.4): the
+   *  pre_authorized (Section 5.7.2) and none (Section 5.7.6): the
       client establishes the binding between the service's endpoint and
       the intended service from a trusted source before sending any
       credential or user data.
@@ -2460,8 +2537,16 @@ Table of Contents
    |              |a trusted   |                            |        |         |
    |              |intermediary|                            |        |         |
    +--------------+------------+----------------------------+--------+---------+
+   |sso           |Browser     |launch_uri, relay_state     |Section |Section  |
+   |              |single sign-|                            |11.8    |5.7.4    |
+   |              |on launch   |                            |        |         |
+   +--------------+------------+----------------------------+--------+---------+
+   |portal        |Launch-only |launch_uri                  |None    |Section  |
+   |              |application |                            |        |5.7.5    |
+   |              |link        |                            |        |         |
+   +--------------+------------+----------------------------+--------+---------+
    |none          |No          |None                        |None    |Section  |
-   |              |credential  |                            |        |5.7.4    |
+   |              |credential  |                            |        |5.7.6    |
    |              |required    |                            |        |         |
    |              |(public)    |                            |        |         |
    +--------------+------------+----------------------------+--------+---------+
@@ -2501,7 +2586,33 @@ Table of Contents
 
                                  Table 4
 
-11.8.  Link Relation Types
+11.8.  SSO Service Catalog Connection Type Registry
+
+   IANA is requested to establish the "SSO Service Catalog Connection
+   Type" registry for values of the type member of an sso profile
+   connection object (Section 5.7.4).  The registration policy is
+   Specification Required.  Each registration contains the connection
+   type value, a brief description, and a reference.  Values are case-
+   sensitive strings of printable ASCII characters without whitespace.
+   Initial contents:
+
+    +============+=======================================+===========+
+    | Connection | Description                           | Reference |
+    | Type       |                                       |           |
+    +============+=======================================+===========+
+    | saml       | SAML 2.0 web browser single sign-on   | Section   |
+    |            |                                       | 5.7.4     |
+    +------------+---------------------------------------+-----------+
+    | oidc       | OpenID Connect single sign-on,        | Section   |
+    |            | including third-party-initiated login | 5.7.4     |
+    +------------+---------------------------------------+-----------+
+    | ws_fed     | WS-Federation web single sign-on      | Section   |
+    |            |                                       | 5.7.4     |
+    +------------+---------------------------------------+-----------+
+
+                                 Table 5
+
+11.9.  Link Relation Types
 
    IANA is requested to register the following relation types in the
    "Link Relation Types" registry established by [RFC8288].
@@ -2676,6 +2787,11 @@ Table of Contents
               <https://datatracker.ietf.org/doc/draft-ietf-oauth-client-
               id-metadata-document/>.
 
+   [OPENID-CONNECT]
+              "OpenID Connect Core 1.0 incorporating errata set 2",
+              2023,
+              <https://openid.net/specs/openid-connect-core-1_0.html>.
+
    [ARD]      "Agentic Resource Discovery", 2026,
               <https://agenticresourcediscovery.org/>.
 
@@ -2714,6 +2830,16 @@ Document History
    *  Renamed the service object's base_uri member to endpoint, a type-
       neutral name that reads correctly for http, mcp, and a2a services,
       consistent with the type-neutral core.
+
+   *  Added launch-style connection profiles so the catalog is a
+      superset of an enterprise single sign-on application catalog.  The
+      sso profile (with an "SSO Service Catalog Connection Type"
+      registry seeded with saml, oidc, and ws_fed) carries a launch_uri,
+      where oidc is first class via third-party-initiated login.  The
+      portal profile covers launch-only bookmark applications.
+      Generalized the connection-method definition to cover launch-style
+      access, in which the identity provider federates a browser session
+      and the client holds no credential.
 
    *  Grounded the Catalog Provider in the existing enterprise single
       sign-on application catalog, with an identity provider as a
