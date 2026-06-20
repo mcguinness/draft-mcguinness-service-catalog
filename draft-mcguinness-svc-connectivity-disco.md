@@ -123,7 +123,7 @@ informative:
 
 --- abstract
 
-This specification defines per-user service connectivity discovery: a standardized answer to the question "which services can this user and client connect to right now, and how?" Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint (discovered from the user's identity provider metadata after sign-in) and receives a catalog, scoped to that user, of the reachable services and, for each, one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS). OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token.
+This specification defines per-user service connectivity discovery: a standardized answer to the question "which services can this user and client connect to right now, and how?" Existing discovery describes services but does not reflect the per-user, per-client authorization decisions that determine what is actually reachable. A client (such as an autonomous agent) makes a single authenticated request to the Service Catalog Endpoint (discovered from the user's identity provider metadata after sign-in) and receives, scoped to that user, the reachable services that match its request, each with one or more connection methods. Each connection method separates three concerns that existing mechanisms tend to collapse: discovering the service, acquiring a credential (for example, via OAuth 2.0 Token Exchange or the authorization code grant), and presenting that credential (for example, a bearer token, an API key, or mutual TLS). OAuth 2.0 is not assumed. A service may be an HTTP API, a Model Context Protocol (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the catalog to plan intent-scoped access before requesting any token.
 
 --- middle
 
@@ -133,11 +133,9 @@ An autonomous agent acting on behalf of a user needs a basic answer before it ca
 
 Existing discovery mechanisms describe services. They do not say which services a particular user and client may reach, nor how to connect. OAuth 2.0 Protected Resource Metadata {{RFC9728}} describes a *single* resource the client already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata {{RFC8414}} describes a *single* authorization server. The Model Context Protocol authorization specification {{MCP-AUTHORIZATION}}, MCP Server Cards {{MCP-SERVER-CARD}}, A2A Agent Cards {{A2A}}, and APIs.json {{APISJSON}} describe individual services or agents for human and tooling consumption. None answers, for a given user and client, *what is reachable and how do I connect*. The closest relative is OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}}, which performs authorization-aware discovery for one mechanism (token exchange). This document generalizes that idea across connection mechanisms, and a client that only needs token exchange can use the catalog as a superset of it.
 
-This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint** and receives, for the authenticated user, the set of reachable services and, for each, the descriptive metadata to understand it and one or more **connection methods** to obtain credentials and call it. The document returned is the *catalog*. The server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
+This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint**, scoped to the capability or service it needs, and receives the matching reachable services for that user. Each comes with the descriptive metadata to understand it and one or more **connection methods** to obtain credentials and call it. The document returned is the *catalog*. The server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
 
-This role is not greenfield. An enterprise identity provider already maintains a per-user catalog of the services a user can reach. It is the single sign-on application catalog behind the user's app launcher or dashboard, built from the same authorization decisions used here. Today that catalog is human-facing. It tells an agent neither how to connect nor whether a connection can be made without interaction. This document makes that existing per-user catalog machine-readable and connection-aware. An identity provider is therefore a natural Catalog Provider, and can expose what it already knows rather than build a new inventory.
-
-It is useful to see this as the reachability analogue of OAuth 2.0 Authorization Server Metadata {{RFC8414}}: where RFC 8414 lets a client discover one authorization server per issuer and its authorization capabilities, this document lets a client discover the reachable services per user and client and their connection capabilities.
+This role is not greenfield. An enterprise identity provider already maintains a per-user catalog of the services a user can reach. It is the single sign-on application catalog behind the user's app launcher or dashboard, built from the same authorization decisions used here. Today that catalog is human-facing. It tells an agent neither how to connect nor whether a connection can be made without interaction. This document makes that existing per-user catalog machine-readable and connection-aware. An identity provider is therefore a natural Catalog Provider, and can expose what it already knows rather than build a new inventory. For an OAuth audience, the result is the reachability analogue of Authorization Server Metadata {{RFC8414}}. Where RFC 8414 describes one authorization server per issuer, the catalog describes the services reachable per user and client.
 
 The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
 
@@ -159,13 +157,24 @@ Beyond this, the design is deliberately general:
 
 * **Intent-based planning.** An agent can read the catalog, and the descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
 
-Service types, categories, link relations, connection profiles, and profile-specific connection types are each extensible through IANA registries, so the model grows without new protocols.
+## Minimal Core
 
-## Why Agents Need This
+The mandatory core is small. A Catalog Provider and client interoperate using only the following, and every other mechanism is composition of a connection profile or a referenced descriptor:
 
-An autonomous agent cannot realistically, at runtime, scan a user's OpenAPI documents, infer which SaaS systems the user actually has, determine which accounts exist, and derive each service's connection mechanism. Service connectivity discovery answers exactly that: in one request, an agent learns the set of services that are both relevant and connectable for the user, and how to connect, before planning any action. This makes it primarily an agent-facing mechanism, though nothing restricts its use to agents.
+* an authenticated Service Catalog Endpoint that returns a catalog for the authenticated user ({{catalog-request}})
+* a catalog with a `services` array ({{catalog-object}})
+* per service: an `id`, a `name`, an optional `type` (default `http`), an optional `base_uri`, optional `links`, and a non-empty `connections` array ({{service-object}})
+* per connection: a `profile`, a per-connection availability `status`, and the members that profile defines ({{connection-object}})
 
-The value proposition is therefore precise. Without a human in the loop, an agent can:
+A connection profile (such as `oauth`) supplies how a credential is acquired and presented. A referenced descriptor (an OpenAPI document, MCP Server Card, or A2A Agent Card) supplies the service's capabilities. The catalog composes these. It does not restate them.
+
+## Consumers and Use Cases
+
+The motivating consumer is an autonomous agent. An agent cannot realistically, at runtime, scan a user's OpenAPI documents, infer which SaaS systems the user has, determine which accounts exist, and derive each service's connection mechanism. Service connectivity discovery answers that in one scoped request. It returns which services are relevant and connectable for the user, and which connection methods apply.
+
+The mechanism is not agent-specific. The same per-user connectivity discovery serves command-line tools, SDKs, enterprise application launchers, workflow and orchestration tools, and delegated assistants. An agent is one consuming class, not the reason the protocol exists.
+
+The value proposition is precise. Without a human in the loop, a client can:
 
 * reconnect to services the user has already linked (`status` of `connected`), avoiding a per-service authorization failure and retry on each one,
 * plan across the set of reachable services for a user's goal, and
@@ -175,7 +184,9 @@ These are the autonomous capabilities. Automated connection to a service the use
 
 ## What the Catalog Is Not
 
-The catalog is deliberately narrow. It is **not**:
+This specification does not replace OpenAPI, MCP, A2A, Agentic Resource Discovery {{ARD}}, or the OAuth metadata documents ({{RFC8414}}, {{RFC9728}}). It answers one question those mechanisms leave open, before they become useful: for this authenticated user and this client, which services are reachable, and which connection profile applies? It is glue, not a new center of gravity.
+
+The catalog is therefore deliberately narrow. It is **not**:
 
 * authoritative API or capability metadata: that lives in the service's OpenAPI document, MCP Server Card, or A2A Agent Card, which the catalog references rather than duplicates ({{related-work}});
 * a token issuance or grant protocol: it describes how to use existing mechanisms and issues no credential itself ({{connecting}});
@@ -551,7 +562,7 @@ security_scheme:
 : OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme. When the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes.
 
 status:
-: OPTIONAL. A string giving the per-user state of this connection method. If omitted, the client SHOULD treat the status as `available`. Because this default is the most actionable value, "not computed" and "verified available" are indistinguishable. A Catalog Provider SHOULD therefore set `status` explicitly, and a security-conscious client MAY treat a connection whose status it cannot confirm as requiring verification before relying on it. One of:
+: OPTIONAL. A string giving the per-user availability of this connection method. It is a planning signal for whether and how a credential can be obtained. It is not a security or trust assertion ({{autonomous-trust}}). If omitted, the client SHOULD treat the status as `available`. Because this default is the most actionable value, "not computed" and "verified available" are indistinguishable. A Catalog Provider SHOULD therefore set `status` explicitly, and a security-conscious client MAY treat a connection whose status it cannot confirm as requiring verification before relying on it. One of:
 
     * `connected`: The Catalog Provider believes an account or linkage exists for this user (for example, a prior authorization, an account link, or a stored token). This is the provider's assertion that a relationship exists. It does not mean a valid credential is in hand, that the service is the one the user intended, or that calling is safe. The client may still need to obtain or refresh a token, the relationship MAY be stale (expired or revoked), and the assertion is only as trustworthy as the provider, so `connected` alone does not waive the resource confirmation and trust checks of {{profile-oauth}}. A client MUST still handle an authentication failure at call time.
     * `available`: The client can obtain a credential using this method without further user interaction (for example, a token exchange or client credentials grant).
@@ -693,6 +704,35 @@ The `none` profile describes a service that requires no client authentication. T
 A Catalog Provider MUST NOT include secret values (access tokens, refresh tokens, client secrets, API keys, or private keys) anywhere in the catalog.
 
 ## Examples {#response-example}
+
+### A Minimal Catalog
+
+The simplest useful catalog is one HTTP service with one OAuth connection. The client retrieves it, re-anchors the `authorization_server` against the `resource`, obtains a token, and calls the API.
+
+    HTTP/1.1 200 OK
+    Content-Type: application/service-catalog+json
+
+    {
+      "services": [
+        {
+          "id": "mail",
+          "name": "Example Mail",
+          "base_uri": "https://api.example.com/mail",
+          "connections": [
+            {
+              "profile": "oauth",
+              "type": "authorization_code",
+              "status": "consent_required",
+              "authorization_server": "https://as.example.com",
+              "resource": "https://api.example.com/mail",
+              "scopes": ["mail.read"]
+            }
+          ]
+        }
+      ]
+    }
+
+The remaining examples show broader applicability: MCP and A2A services, multiple accounts, and a pre-provisioned credential.
 
 ### A Catalog Response
 
@@ -885,14 +925,15 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
-3. For the `oauth` profile, determine the client identity from `client_registration`:
+3. Apply the connection's trust gate before contacting the authorization server. For the `oauth` profile, re-anchor by confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for the `resource` ({{profile-oauth}}). For other profiles, apply that profile's trust requirements ({{connection-profiles}}).
+4. Determine the client identity from `client_registration`. Do this only after the trust gate in the previous step, so that client metadata or a client-id URL is not disclosed to an unverified authorization server.
     * `static`: use the `client_id` member.
-    * `dynamic`: register with the authorization server using {{RFC7591}}, after first applying a trust policy to the catalog-discovered authorization server ({{confused-deputy}}).
-    * `client_id_metadata_document`: use an HTTPS URL the client controls as its `client_id`, per {{CIMD}}. The authorization server dereferences it, with no registration call.
+    * `dynamic`: register with the authorization server using {{RFC7591}}, subject to the trust policy of {{confused-deputy}}.
+    * `client_id_metadata_document`: present an HTTPS URL the client controls as its `client_id`, per {{CIMD}}. The authorization server dereferences it, with no registration call.
 
     When `client_registration` is absent, use the `client_id` if present, and otherwise an identity the client determines is appropriate, or none where the flow requires none.
-4. Obtain the credential according to the connection `profile` and profile-specific `type` (see {{connection-profiles}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth connection types, after re-anchoring to the resource's metadata ({{profile-oauth}}).
-5. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card), for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
+5. Obtain the credential according to the connection `profile` and profile-specific `type` (see {{connection-profiles}}), using the values on the selected connection object, including the `resource` {{RFC8707}} and `scopes` for OAuth connection types.
+6. Call the service, presenting the credential as described by the connection's `present` member or, when it is absent, by the service's referenced security schemes (an OpenAPI {{OPENAPI}} document, an A2A Agent Card, or an MCP Server Card), for example, as a bearer token {{RFC6750}}, an API key, or a client certificate.
 
 This specification does not define any new credential issuance mechanism. Each connection profile parameterizes an existing mechanism or deployment model.
 
@@ -948,6 +989,14 @@ Agentic Resource Discovery {{ARD}} defines a public, cross-organization discover
 Several of the above are evolving specifications: A2A {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and {{RAR-METADATA}} are referenced here as directional rather than stable dependencies. The catalog's core function (per-user enumeration of services and their connection methods) does not depend on any of them. A Catalog Provider and client can interoperate using only OAuth 2.0 metadata ({{RFC9728}}, {{RFC8414}}) and human-readable links, and treat references to those evolving formats as optional enhancements.
 
 # Security Considerations {#security-considerations}
+
+The detailed requirements that follow rest on a few invariants. A reader who holds these in mind will find the rest of this section straightforward:
+
+* The catalog is not authoritative for a service's identity.
+* The catalog is not authoritative for OAuth endpoints.
+* A `status` of `connected` is not proof of access or trust.
+* Credentials never come from the catalog.
+* Each connection profile defines the trust gate a client applies before use.
 
 ## Authentication and Transport
 
@@ -1160,6 +1209,7 @@ Reference: This document.
 * Added an optional `uid` cross-catalog service identifier with an issuer-controlled minting model and privacy guidance.
 * Specified filtering (whole-object selection, effective status), pagination (next-page precedence, `limit` bounds, best-effort snapshot), `Accept` content negotiation, and the error model (429 with `Retry-After`, distinct problem `type`s); and fixed the omit-empty rule so `services` is always present, empty when none.
 * Made a scoped, capability-first request the expected shape and full-catalog enumeration a privileged operation. A provider returns a minimal slice for a stated need and may restrict full enumeration, which limits the reconnaissance value of a single request.
+* Restructured the front matter to lead with the core. Added a "Minimal Core" summary, a "Security Model at a Glance" invariant list, and the composition frame (glue, not a new center of gravity). Aligned the abstract and the definition with the scoped-request model so neither promises a full enumeration, and folded the RFC 8414 reachability analogue into the identity-provider grounding rather than stating it as a separate framing. Broadened the consumer framing beyond agents to include command-line tools, SDKs, application launchers, workflow tools, and delegated assistants. Reordered the connecting procedure so the trust gate precedes dynamic registration and Client ID Metadata Document use. Reframed connection `status` as an availability signal rather than a trust assertion. Added a minimal one-service OAuth example before the broader one.
 * Reframed the intent section: the catalog provides candidate services and an access ceiling, not the intent-to-minimal-grant mapping (the client derives that from the service descriptor and Rich Authorization Requests type metadata), and `mcp` services are generally scopable only at server granularity.
 * Added a Relationship to Other Work entry distinguishing Agentic Resource Discovery (public, pre-invocation, publisher-signed) from this per-user, authenticated connectivity layer.
 * Moved DPoP {{RFC9449}} to normative references (it is cited with a conditional MUST), and set the Service Category registry to Expert Review while keeping Specification Required for the protocol-affecting registries.
