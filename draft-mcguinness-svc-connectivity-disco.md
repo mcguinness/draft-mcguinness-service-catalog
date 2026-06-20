@@ -84,6 +84,10 @@ informative:
     title: "OAuth Client ID Metadata Document"
     target: https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/
     date: 2026
+  OPENID-CONNECT:
+    title: "OpenID Connect Core 1.0 incorporating errata set 2"
+    target: https://openid.net/specs/openid-connect-core-1_0.html
+    date: 2023
   ARD:
     title: "Agentic Resource Discovery"
     target: https://agenticresourcediscovery.org/
@@ -133,14 +137,14 @@ An autonomous agent acting on behalf of a user needs a basic answer before it ca
 
 Existing discovery mechanisms describe services. They do not say which services a particular user and client may reach, nor how to connect. OAuth 2.0 Protected Resource Metadata {{RFC9728}} describes a *single* resource the client already knows about, typically after an HTTP 401 challenge. OAuth 2.0 Authorization Server Metadata {{RFC8414}} describes a *single* authorization server. The Model Context Protocol authorization specification {{MCP-AUTHORIZATION}}, MCP Server Cards {{MCP-SERVER-CARD}}, A2A Agent Cards {{A2A}}, and APIs.json {{APISJSON}} describe individual services or agents for human and tooling consumption. None answers, for a given user and client, *what is reachable and how do I connect*. The closest relative is OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}}, which performs authorization-aware discovery for one mechanism (token exchange). This document generalizes that idea across connection mechanisms, and a client that only needs token exchange can use the catalog as a superset of it.
 
-This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint**, scoped to the capability or service it needs, and receives the matching reachable services for that user. Each comes with the descriptive metadata to understand it and one or more **connection methods** to obtain credentials and call it. The document returned is the *catalog*. The server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
+This specification defines per-user **service connectivity discovery**. A client makes a single authenticated request to the **Service Catalog Endpoint**, scoped to the capability or service it needs, and receives the matching reachable services for that user. Each comes with the descriptive metadata to understand it and one or more **connection methods** to connect to it. The document returned is the *catalog*. The server that produces it is the **Catalog Provider**, which MAY aggregate services across multiple resources, authorization servers, authentication schemes, and administrative domains.
 
 This role is not greenfield. An enterprise identity provider already maintains a per-user catalog of the services a user can reach. It is the single sign-on application catalog behind the user's app launcher or dashboard, built from the same authorization decisions used here. Today that catalog is human-facing. It tells an agent neither how to connect nor whether a connection can be made without interaction. This document makes that existing per-user catalog machine-readable and connection-aware. An identity provider is therefore a natural Catalog Provider, and can expose what it already knows rather than build a new inventory. For an OAuth audience, the result is the reachability analogue of Authorization Server Metadata {{RFC8414}}. Where RFC 8414 describes one authorization server per issuer, the catalog describes the services reachable per user and client.
 
 The central abstraction is the separation of three concerns that existing mechanisms tend to collapse:
 
 * **Discovery**: which services are reachable for this user and client.
-* **Acquisition**: how a credential is obtained (the connection `profile`, and any profile-specific `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, credential injection by a trusted intermediary, or none).
+* **Acquisition**: how a credential is obtained, or how access is otherwise gained (the connection `profile`, and any profile-specific `type`: OAuth 2.0 token exchange, authorization code, client credentials, the Identity Assertion Authorization Grant {{I-D.oauth-identity-assertion-authz-grant}}, a pre-provisioned credential, credential injection by a trusted intermediary, browser single sign-on, or none).
 * **Presentation**: how the credential is presented when calling the service, expressed as an OpenAPI {{OPENAPI}} security scheme (a bearer token, API key, or mutual TLS).
 
 Discovery is the catalog's own role. Acquisition and presentation are the two layers carried by each connection method ({{connection-object}}). Separating them lets one model describe OAuth, API keys, mutual TLS, pre-provisioned credentials, and future agent credential models without inventing a new object per mechanism. OAuth 2.0 is not assumed.
@@ -209,7 +213,7 @@ Service:
 : Something a client can call on behalf of the user, such as an HTTP API or an MCP server. A service has a service type (see {{service-types}}).
 
 Connection Method:
-: One way a client can obtain a credential and present it to call a service. A connection method separates two layers: acquisition (how the credential is obtained, given by the `profile` and, where needed, a profile-specific `type`; see {{connection-profiles}}) and presentation (how the credential is presented to the service; see {{connection-object}}). OAuth 2.0 token issuance is one acquisition profile. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, or use none.
+: One way a client can gain access to a service. Most connection methods separate two layers: acquisition (how a credential is obtained, given by the `profile` and, where needed, a profile-specific `type`; see {{connection-profiles}}) and presentation (how the credential is presented to the service; see {{connection-object}}). A launch-style method instead opens a single sign-on start URL in a user agent, where the identity provider federates a session and the client holds no credential ({{profile-sso}}). OAuth 2.0 token issuance is one acquisition profile. Others use a pre-provisioned credential, delegate credential handling to a trusted intermediary, perform browser single sign-on, or use none.
 
 All members and string values defined by this document are case sensitive unless otherwise stated. All URIs are absolute URIs {{RFC3986}} unless otherwise stated.
 
@@ -556,7 +560,7 @@ present:
     * API key location: because `present` is a verbatim OpenAPI object, any `apiKey` location OpenAPI permits is syntactically valid here, but a query-located key places the credential in the request URI, where it is exposed in logs and history. `in: header` is RECOMMENDED. A Catalog Provider SHOULD NOT advertise an `apiKey` with `in: query` for this profile, and SHOULD avoid `in: cookie`; it MAY advertise `in: query` only when a local policy or out-of-band agreement establishes it is safe for the specific service. A client SHOULD reject an `apiKey` scheme with `in: query` by default, presenting it that way only when its own policy permits.
     * When omitted: presentation is resolved by the selected profile. If the profile does not define a default, the client uses the service's referenced descriptor, such as an OpenAPI document, A2A Agent Card, or MCP Server Card.
     * No restatement: the catalog SHOULD NOT inline a `present` value that merely repeats security schemes already published in the service's descriptor (an OpenAPI document via `service-desc`, an A2A Agent Card, or an MCP Server Card). A client obtains those by reference ({{intent}}).
-    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) unless the selected connection profile says otherwise. For `a2a` services, presentation follows the agent's Agent Card. For a `proxy_injected` connection ({{profile-proxy-injected}}), `present` describes how the client authenticates to the intermediary, not to the service.
+    * Applicability: `present` is primarily for `http` services that lack a referenced descriptor. For `mcp` services, presentation follows the MCP specification (a bearer token over the MCP transport) unless the selected connection profile says otherwise. For `a2a` services, presentation follows the agent's Agent Card. For a `proxy_injected` connection ({{profile-proxy-injected}}), `present` describes how the client authenticates to the intermediary, not to the service. For an `sso` or `portal` connection ({{profile-sso}}, {{profile-portal}}), `present` does not apply, because access is established by browser launch rather than by a credential the client presents.
 
 security_scheme:
 : OPTIONAL. A string naming a security scheme defined in the service's referenced descriptor (a key of an OpenAPI `securitySchemes` object, or the `securitySchemes` of an A2A Agent Card) that this connection corresponds to. This lets a client map the connection to a specific scheme rather than inferring it, and is meaningful only for the common case of a single applicable scheme. When the descriptor's security requirements are more complex (multiple required schemes, or alternatives), the client consults the descriptor's security requirements directly. This member does not apply to `mcp` services, whose authorization is defined by the MCP specification rather than by named security schemes.
@@ -697,6 +701,26 @@ proxy:
 
 When the client routes through an explicit `endpoint`, the connection's `present` member ({{connection-object}}) describes how the client authenticates to the *intermediary* (for example, with its own bearer token or a sentinel), not to the service. The service-facing credential is held and presented solely by the intermediary, and the catalog MUST NOT convey it. Because a `proxy_injected` connection has no `authorization_server`, it cannot be re-anchored using the OAuth profile's resource metadata checks. The client MUST establish trust in the intermediary's `endpoint` and identity from a trusted source before routing requests through it.
 
+### Single Sign-On Profile {#profile-sso}
+
+The `sso` profile describes a launch-style connection: a browser single sign-on into a web application, in which the identity provider federates a session in a user agent and the client holds no credential. It models the entries of an enterprise single sign-on application catalog. An `sso` connection object MUST include a `type` member whose value is drawn from the "SSO Service Catalog Connection Type" registry ({{sso-connection-type-registry}}). This document defines `saml`, `oidc`, and `ws_fed`.
+
+Profile-specific members:
+
+launch_uri:
+: REQUIRED. A URI that a user agent opens to begin single sign-on. For `saml`, it is the service-provider-initiated or identity-provider-initiated SSO start URL. For `oidc`, it is the relying party's third-party-initiated login initiation URI {{OPENID-CONNECT}}, which lets an application launcher start login at the relying party. The application's federation metadata (for example, SAML metadata or the OpenID Provider configuration) is referenced through a `describedby` link ({{link-object}}) rather than restated.
+
+relay_state:
+: OPTIONAL. A value the launcher passes to deep-link into a location within the application after sign-on. For `saml`, it is the SAML RelayState. For `oidc`, it is the `target_link_uri` of third-party-initiated login.
+
+An `sso` connection is completed by opening `launch_uri` in a user agent, not by the client obtaining a token. The `present` member ({{connection-object}}) does not apply. A `status` of `connected` means the application is assigned to, or provisioned for, the user. Because access is browser-mediated, an `sso` connection is launchable on the user's behalf but is not programmatically callable by the client.
+
+Before launch, the client MUST establish the identity of the application and of the `launch_uri` from a trusted source ({{autonomous-trust}}), since the catalog alone does not prove them. Federation metadata and its format are defined by the relevant single sign-on specification. This document references such metadata by URL and does not restate it.
+
+### Portal Profile {#profile-portal}
+
+The `portal` profile describes a launch-only application: a link the user opens, where the application handles authentication by its own means, such as a bookmarked web application or one behind a password manager. It is the catalog equivalent of a single sign-on bookmark tile. Its only member is `launch_uri`, a URI the user agent opens. Like `sso`, a `portal` connection is browser-mediated and launchable on the user's behalf, the `present` member does not apply, and the client MUST establish the identity of the `launch_uri` from a trusted source before launch ({{autonomous-trust}}).
+
 ### Public Service Profile {#profile-none}
 
 The `none` profile describes a service that requires no client authentication. This profile defines no additional members and typically has `status` of `available`. Although no credential is presented, the client still sends requests, and possibly user data, to the service's `endpoint`. As with the other non-`oauth` profiles, the client MUST establish the service's identity from a trusted source (explicit configuration, a trust policy, or user confirmation), not from the catalog alone, before sending any user data.
@@ -736,7 +760,7 @@ The remaining examples show broader applicability: MCP and A2A services, multipl
 
 ### A Catalog Response
 
-The following is a non-normative example response showing four services: an HTTP service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), and an A2A agent referencing its Agent Card.
+The following is a non-normative example response showing five services: an HTTP service in the `email` category offering both token exchange and user consent, an MCP server referencing its Server Card, a service the user is already connected to via a pre-provisioned API key (note the `present` member), an A2A agent referencing its Agent Card, and an SSO web application launched via OpenID Connect (note the `launch_uri` and the absence of a credential).
 
     HTTP/1.1 200 OK
     Content-Type: application/service-catalog+json
@@ -838,6 +862,19 @@ The following is a non-normative example response showing four services: an HTTP
               "authorization_server": "https://as.example.com",
               "resource": "https://agent.example/a2a",
               "client_registration": "dynamic"
+            }
+          ]
+        },
+        {
+          "id": "hr",
+          "name": "HR Portal",
+          "endpoint": "https://hr.example.com",
+          "connections": [
+            {
+              "profile": "sso",
+              "type": "oidc",
+              "status": "connected",
+              "launch_uri": "https://hr.example.com/oidc/login"
             }
           ]
         }
@@ -1155,6 +1192,8 @@ IANA is requested to establish the "Service Catalog Connection Profile" registry
 | `oauth` | OAuth 2.0 token acquisition | `authorization_server`, `token_endpoint`, `resource`, `scopes`, `authorization_details_types`, `client_id`, `client_registration` | {{oauth-connection-type-registry}} | {{profile-oauth}} |
 | `pre_authorized` | Pre-provisioned out-of-band credential | None | None | {{profile-pre-authorized}} |
 | `proxy_injected` | Credential injected by a trusted intermediary | `proxy` | None | {{profile-proxy-injected}} |
+| `sso` | Browser single sign-on launch | `launch_uri`, `relay_state` | {{sso-connection-type-registry}} | {{profile-sso}} |
+| `portal` | Launch-only application link | `launch_uri` | None | {{profile-portal}} |
 | `none` | No credential required (public) | None | None | {{profile-none}} |
 
 ## OAuth Service Catalog Connection Type Registry {#oauth-connection-type-registry}
@@ -1167,6 +1206,16 @@ IANA is requested to establish the "OAuth Service Catalog Connection Type" regis
 | `authorization_code` | Authorization code grant with PKCE | None | {{type-authorization-code}} |
 | `client_credentials` | Client credentials grant | None | {{type-client-credentials}} |
 | `id_jag` | Identity Assertion Authorization Grant | `audience` | {{type-id-jag}} |
+
+## SSO Service Catalog Connection Type Registry {#sso-connection-type-registry}
+
+IANA is requested to establish the "SSO Service Catalog Connection Type" registry for values of the `type` member of an `sso` profile connection object ({{profile-sso}}). The registration policy is Specification Required. Each registration contains the connection type value, a brief description, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
+
+| Connection Type | Description | Reference |
+| --------------- | ----------- | --------- |
+| `saml` | SAML 2.0 web browser single sign-on | {{profile-sso}} |
+| `oidc` | OpenID Connect single sign-on, including third-party-initiated login | {{profile-sso}} |
+| `ws_fed` | WS-Federation web single sign-on | {{profile-sso}} |
 
 ## Link Relation Types {#iana-link-relations}
 
@@ -1199,6 +1248,7 @@ Reference: This document.
 
 * Retitled to "Per-User Service Connectivity Discovery" and repositioned around per-user, authorization-aware connectivity discovery.
 * Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
+* Added launch-style connection profiles so the catalog is a superset of an enterprise single sign-on application catalog. The `sso` profile (with an "SSO Service Catalog Connection Type" registry seeded with `saml`, `oidc`, and `ws_fed`) carries a `launch_uri`, where `oidc` is first class via third-party-initiated login. The `portal` profile covers launch-only bookmark applications. Generalized the connection-method definition to cover launch-style access, in which the identity provider federates a browser session and the client holds no credential.
 * Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
 * Made `client_registration` an explicit mode enumeration and added the `client_id_metadata_document` (CIMD) mode {{CIMD}}, in which the client uses an HTTPS URL it controls as its `client_id`.
