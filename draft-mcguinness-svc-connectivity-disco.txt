@@ -230,28 +230,6 @@ Table of Contents
    mandatory surface an implementer must adopt stays small even as the
    breadth below grows.
 
-   Beyond this, the design is deliberately general:
-
-   *  *Multiple service types.* A service may be a conventional HTTP API
-      (http), an MCP server (mcp), or an A2A agent (a2a).  MCP servers
-      and A2A agents are first-class: such a service references its MCP
-      Server Card [MCP-SERVER-CARD] or A2A Agent Card [A2A] so a client
-      can learn the service's capabilities without connecting.
-
-   *  *Capability-based discovery.* Each service may carry well-known
-      *categories* (such as email or calendar), so an agent can find a
-      service by what it does rather than by name.
-
-   *  *Well-known links.* Each service may carry typed *links*
-      (documentation, sign-up, terms of service, the MCP Server Card,
-      and others) using link relation types [RFC8288].
-
-   *  *Intent-based planning.* An agent can read the catalog, and the
-      descriptors it references, to plan for a user's goal and then
-      request only the intent-scoped access it needs, including fine-
-      grained access via Rich Authorization Requests [RFC9396]
-      (Section 7).
-
 1.1.  Minimal Core
 
    The mandatory core is small.  A Catalog Provider and client
@@ -275,6 +253,13 @@ Table of Contents
    acquired and presented.  A referenced descriptor (an OpenAPI
    document, MCP Server Card, or A2A Agent Card) supplies the service's
    capabilities.  The catalog composes these.  It does not restate them.
+
+   Beyond the core, the catalog supports capability-based discovery, so
+   a client can find a service by well-known category rather than by
+   name (Section 5.4).  It treats mcp and a2a services as first class by
+   referencing their Server Card or Agent Card, so a client can learn
+   capabilities without connecting (Section 5.3).  And it supports
+   intent-scoped planning before any token is requested (Section 7).
 
 1.2.  Consumers and Use Cases
 
@@ -2918,6 +2903,12 @@ Document History
       enterprise SSO application catalog superset.  Opened the
       introduction client-first with the autonomous agent as the leading
       example.
+
+   *  Trimmed the introduction: removed the "deliberately general"
+      bullet list, which sat before the Minimal Core and overlapped it
+      and the guiding principle, and folded the distinctive capabilities
+      (capability-based discovery, first-class MCP/A2A, intent-scoped
+      planning) into a short paragraph after the Minimal Core.
 
    *  Renamed the service object's base_uri member to endpoint, a type-
       neutral name that reads correctly for http, mcp, and a2a services,
