@@ -119,8 +119,9 @@ Table of Contents
      9.5.  Trust in the Catalog Provider
      9.6.  Trust Requirements for Autonomous Clients
      9.7.  Confused Deputy and Client Registration
-     9.8.  Authorization Server Mix-Up
-     9.9.  Launch-Style Single Sign-On
+     9.8.  Trust Frameworks
+     9.9.  Authorization Server Mix-Up
+     9.10. Launch-Style Single Sign-On
    10. Privacy Considerations
    11. IANA Considerations
      11.1.  OAuth Authorization Server Metadata
@@ -2158,6 +2159,14 @@ Table of Contents
    connection values name what a client can subsequently request,
    whether by token exchange, an OAuth grant, or a GNAP access request.
 
+   OpenID Federation [OPENID-FEDERATION] establishes trust among many
+   entities through verifiable trust chains and trust marks, and can
+   automate client registration.  It is one way to discharge the trust
+   decisions this document requires when a client connects to
+   authorization servers it did not know in advance (Section 9.8).  The
+   catalog enumerates what is reachable, while the federation supplies
+   the basis for trusting it.
+
    User-Managed Access (UMA 2.0) [UMA2] lets a resource owner share
    resources with other parties.  Its resource registration is resource-
    server-to-authorization-server and is not client-facing, and its
@@ -2376,8 +2385,9 @@ Table of Contents
 
    *  A client MUST gate dynamic registration on a trust policy, rather
       than registering automatically.  The policy can be an allowlist of
-      acceptable issuers, membership in a trust framework, an issuer-
-      matching policy, or explicit user or administrator confirmation.
+      acceptable issuers, membership in a trust framework (Section 9.8),
+      an issuer-matching policy, or explicit user or administrator
+      confirmation.
 
    *  An autonomous client, which typically has no site-specific policy,
       MUST NOT auto-register with a catalog-discovered authorization
@@ -2395,7 +2405,36 @@ Table of Contents
    then dereferences it, so the same re-anchoring SHOULD precede its
    use.
 
-9.8.  Authorization Server Mix-Up
+9.8.  Trust Frameworks
+
+   Several requirements in this document reduce to one question: may the
+   client trust an authorization server, or a resource, that it did not
+   know in advance?  They include re-anchoring an oauth connection,
+   gating dynamic client registration (Section 9.7), and trusting the
+   authorization_server of an audience-only connection (Section 5.7.1).
+
+   A deployment MAY discharge that decision through a _trust framework_:
+   a shared, verifiable basis for trusting parties a client did not know
+   in advance.  This document neither defines nor mandates one.  A trust
+   framework may be as simple as a static issuer allowlist or an
+   enterprise trust policy, or a standardized framework such as OpenID
+   Federation [OPENID-FEDERATION], which provides verifiable trust
+   chains and trust marks and can also automate client registration.
+
+   Where the client and the relevant authorization servers participate
+   in such a framework, the client uses it to satisfy the trust gates
+   above.  For OpenID Federation in particular, a verified trust chain
+   satisfies the dynamic-registration gate of Section 9.7, and the
+   client MAY register through the framework rather than by plain
+   [RFC7591].
+
+   This adds no framework-specific members to the catalog.  A client
+   resolves framework membership and trust through the framework's own
+   mechanisms, then re-anchors as in Section 5.7.1.  The trust
+   framework, where one exists, supplies the basis for trusting the
+   servers a connection names.  The catalog's role is unchanged.
+
+9.9.  Authorization Server Mix-Up
 
    A catalog directs a client to potentially many authorization servers,
    and an agent may run several authorization flows concurrently.  These
@@ -2408,7 +2447,7 @@ Table of Contents
    authorization_server to the resource's Protected Resource Metadata
    (Section 5.7.1) further reduces this risk.
 
-9.9.  Launch-Style Single Sign-On
+9.10.  Launch-Style Single Sign-On
 
    A launch-style connection (Section 5.7.4, Section 5.7.5) directs a
    user agent to a catalog-supplied launch_uri, and carries the web
@@ -2901,6 +2940,10 @@ Table of Contents
               2023,
               <https://openid.net/specs/openid-connect-core-1_0.html>.
 
+   [OPENID-FEDERATION]
+              "OpenID Federation 1.0", 2025,
+              <https://openid.net/specs/openid-federation-1_0.html>.
+
    [ARD]      "Agentic Resource Discovery", 2026,
               <https://agenticresourcediscovery.org/>.
 
@@ -2931,6 +2974,14 @@ Table of Contents
 Document History
 
    -01
+
+   *  Added a Trust Frameworks security section that lets a deployment
+      discharge the document's trust decisions (re-anchoring, the
+      dynamic-registration gate, audience-only authorization-server
+      trust) through a pluggable trust framework, with OpenID Federation
+      as a worked example and a Relationship to Other Work entry.  This
+      adds no catalog members or registries; a client resolves framework
+      trust through the framework's own mechanisms.
 
    *  Redefined the /.well-known/service-catalog URI as a cacheable,
       host-level catalog metadata document whose
