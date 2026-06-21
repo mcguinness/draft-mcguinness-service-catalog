@@ -155,16 +155,6 @@ Discovery is the catalog's own role. Acquisition and presentation are the two la
 
 This yields the document's guiding principle: **the core catalog is small, and everything mechanism-specific is a separately evolvable profile.** The core is the per-user enumeration of services and, for each, its connection methods and per-connection status. How a credential is acquired and presented is defined by a connection profile. This document specifies the core together with an initial set of profiles. Profiles, service types, categories, and link relations are each extension points behind an IANA registry. They evolve independently of the core. A Catalog Provider and client interoperate on the core and on the profiles they share. The mandatory surface an implementer must adopt stays small even as the breadth below grows.
 
-Beyond this, the design is deliberately general:
-
-* **Multiple service types.** A service may be a conventional HTTP API (`http`), an MCP server (`mcp`), or an A2A agent (`a2a`). MCP servers and A2A agents are first-class: such a service references its MCP Server Card {{MCP-SERVER-CARD}} or A2A Agent Card {{A2A}} so a client can learn the service's capabilities without connecting.
-
-* **Capability-based discovery.** Each service may carry well-known **categories** (such as `email` or `calendar`), so an agent can find a service by what it does rather than by name.
-
-* **Well-known links.** Each service may carry typed **links** (documentation, sign-up, terms of service, the MCP Server Card, and others) using link relation types {{RFC8288}}.
-
-* **Intent-based planning.** An agent can read the catalog, and the descriptors it references, to plan for a user's goal and then request only the intent-scoped access it needs, including fine-grained access via Rich Authorization Requests {{RFC9396}} ({{intent}}).
-
 ## Minimal Core
 
 The mandatory core is small. A Catalog Provider and client interoperate using only the following, and every other mechanism is composition of a connection profile or a referenced descriptor:
@@ -175,6 +165,8 @@ The mandatory core is small. A Catalog Provider and client interoperate using on
 * per connection: a `profile`, a per-connection availability `status`, and the members that profile defines ({{connection-object}})
 
 A connection profile (such as `oauth`) supplies how a credential is acquired and presented. A referenced descriptor (an OpenAPI document, MCP Server Card, or A2A Agent Card) supplies the service's capabilities. The catalog composes these. It does not restate them.
+
+Beyond the core, the catalog supports capability-based discovery, so a client can find a service by well-known `category` rather than by name ({{service-categories}}). It treats `mcp` and `a2a` services as first class by referencing their Server Card or Agent Card, so a client can learn capabilities without connecting ({{service-types}}). And it supports intent-scoped planning before any token is requested ({{intent}}).
 
 ## Consumers and Use Cases
 
@@ -1281,6 +1273,7 @@ Reference: This document.
 
 * Titled the document "Per-User Service Connectivity Catalog", naming the artifact the document is built around (the catalog, matching the registered `service-catalog` media type, well-known URI, and metadata), with "service connectivity discovery" retained as the protocol that produces it. Repositioned around per-user, authorization-aware connectivity.
 * Rewrote the abstract into three short paragraphs reflecting the matured scope: broadened consumers beyond agents, credential-based and launch-style (single sign-on) connection methods, and the enterprise SSO application catalog superset. Opened the introduction client-first with the autonomous agent as the leading example.
+* Trimmed the introduction: removed the "deliberately general" bullet list, which sat before the Minimal Core and overlapped it and the guiding principle, and folded the distinctive capabilities (capability-based discovery, first-class MCP/A2A, intent-scoped planning) into a short paragraph after the Minimal Core.
 * Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
 * Split service identity into a human-readable `display_name` and an optional machine-readable `name` (a slug, distinct from the opaque `id`), added a `logo_uri` member, and renamed the human-readable catalog and group fields to `display_name` and `group_display_name`. The OpenAPI `apiKey` `name` inside `present` is unaffected.
 * Propagated launch-style access through the credential-centric text: the connecting procedure now skips the credential steps for `sso`/`portal` and opens `launch_uri`, the `connections` member describes connecting rather than obtaining credentials, and the autonomous-client trust list includes launch-style connections. Renamed the `proxy` object's `endpoint` member to `uri` to avoid overloading the service `endpoint` name.
