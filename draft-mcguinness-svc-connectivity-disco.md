@@ -92,6 +92,18 @@ informative:
     title: "OpenID Federation 1.0"
     target: https://openid.net/specs/openid-federation-1_0.html
     date: 2025
+  OKTA-APPS:
+    title: "Okta Applications API"
+    target: https://developer.okta.com/docs/reference/api/apps/
+    date: false
+  MSGRAPH-APPROLES:
+    title: "Microsoft Graph: List appRoleAssignments granted to a user"
+    target: https://learn.microsoft.com/en-us/graph/api/user-list-approleassignments
+    date: false
+  MCP-REGISTRY:
+    title: "Model Context Protocol Registry"
+    target: https://github.com/modelcontextprotocol/registry
+    date: false
   ARD:
     title: "Agentic Resource Discovery"
     target: https://agenticresourcediscovery.org/
@@ -1036,6 +1048,8 @@ The catalog is an authorization-filtered overlay: it lists what a user can reach
 
 The Service Catalog occupies a layer that existing mechanisms do not: a per-user, authorization-filtered overlay that enumerates a user's reachable services and how to connect to each. It composes with, rather than replaces, the following.
 
+Enterprise identity providers already expose per-user application catalogs: the assigned-application APIs behind single sign-on app launchers, such as Okta's assigned-applications API {{OKTA-APPS}} and Microsoft Graph's app role assignments {{MSGRAPH-APPROLES}}, which drive the MyApps portal and comparable dashboards. These are the closest existing analogue to this document, a per-user, authorization-aware list of reachable services. They are, however, provider-specific, oriented to interactive single sign-on, and silent on how to connect programmatically. This document standardizes that per-user view across identity providers and enriches it with machine-readable connection methods spanning credential acquisition and launch-style single sign-on, and with service types beyond web applications (HTTP APIs, MCP servers, and A2A agents). The `sso` and `portal` profiles ({{profile-sso}}, {{profile-portal}}) cover the interactive launch case those APIs already serve.
+
 OAuth 2.0 Token Exchange Target Service Discovery {{TOKEN-EXCHANGE-DISCOVERY}} discovers the audiences, resources, and scopes a subject token may be exchanged for. It is specialized to token exchange. The `oauth` profile's `token_exchange` connection type ({{type-token-exchange}}) carries the same information as one connection method among several. The two are independent and this document does not depend on it.
 
 Rich Authorization Requests {{RFC9396}} and its metadata extension {{RAR-METADATA}} express and describe fine-grained authorization details, but their metadata is server-wide. The catalog advertises, per service and per user, which `authorization_details` types are usable ({{connection-object}}) and defers each type's schema and documentation to {{RAR-METADATA}}.
@@ -1047,6 +1061,8 @@ OpenID Federation {{OPENID-FEDERATION}} establishes trust among many entities th
 User-Managed Access (UMA 2.0) {{UMA2}} lets a resource owner share resources with other parties. Its resource registration is resource-server-to-authorization-server and is not client-facing, and its resource list is a synchronization aid rather than a browsable, per-user catalog. The catalog fills that client-facing gap.
 
 Agent and tool descriptors (A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and machine-readable API descriptions such as OpenAPI {{OPENAPI}}) describe a single service instance, including its capabilities and how it authenticates callers. The catalog references these (via `links`) rather than duplicating them, and adds the per-user authorization context they lack.
+
+Per-ecosystem registries, such as the Model Context Protocol registry {{MCP-REGISTRY}}, enumerate the servers or agents that exist within one protocol, for public discovery rather than per-user authorization. This document is the cross-protocol, per-user layer above them. For an authenticated user it enumerates which services are reachable, across HTTP APIs, MCP servers, A2A agents, and single sign-on applications, and how to connect to each, referencing each ecosystem's own descriptor or registry rather than restating it. Even if a per-ecosystem registry gains a per-user facet, that facet stays within its protocol. The contribution here is the identity-provider-anchored aggregation across protocols and administrative domains: the per-user entry point a client consults first, from which it follows references into the per-protocol descriptors.
 
 APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `display_name`, `description`, `endpoint` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
 
@@ -1299,6 +1315,8 @@ Reference: This document.
 
 -01
 
+* Sharpened the positioning against per-ecosystem registries (for example, the Model Context Protocol registry): the catalog is the cross-protocol, per-user, identity-provider-anchored layer above them, referencing each ecosystem's descriptor or registry rather than competing with it, so a per-ecosystem per-user facet would stay within its protocol while this remains the cross-protocol aggregation.
+* Added a Relationship to Other Work entry for the incumbent per-user application catalogs (Okta's assigned-applications API and Microsoft Graph app role assignments), positioning the document as standardizing that per-user view across identity providers and enriching it with programmatic connection methods and service types beyond web applications.
 * Added a Trust Frameworks security section that lets a deployment discharge the document's trust decisions (re-anchoring, the dynamic-registration gate, audience-only authorization-server trust) through a pluggable trust framework, with OpenID Federation as a worked example and a Relationship to Other Work entry. This adds no catalog members or registries; a client resolves framework trust through the framework's own mechanisms.
 * Redefined the `/.well-known/service-catalog` URI as a cacheable, host-level catalog metadata document whose `service_catalog_endpoint` member names the per-user Service Catalog Endpoint, rather than serving the per-user catalog at the well-known path itself. This matches the cacheable-metadata convention of other well-known URIs and keeps the authenticated, per-user catalog at a separate endpoint. The authorization server metadata value remains the primary discovery mechanism.
 * Titled the document "Per-User Service Connectivity Catalog", naming the artifact the document is built around (the catalog, matching the registered `service-catalog` media type, well-known URI, and metadata), with "service connectivity discovery" retained as the protocol that produces it. Repositioned around per-user, authorization-aware connectivity.
