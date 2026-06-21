@@ -585,7 +585,7 @@ This document defines the core catalog protocol and several initial connection p
 Every connection object has a `profile`:
 
 profile:
-: REQUIRED. A string giving the connection profile, drawn from the "Service Catalog Connection Profile" registry ({{connection-profile-registry}}). This document defines `oauth`, `pre_authorized`, `proxy_injected`, and `none`. A client that encounters an unknown profile MUST NOT execute that connection method unless it implements the specification that defines the profile.
+: REQUIRED. A string giving the connection profile, drawn from the "Service Catalog Connection Profile" registry ({{connection-profile-registry}}). This document defines `oauth`, `pre_authorized`, `proxy_injected`, `sso`, `portal`, and `none`. A client that encounters an unknown profile MUST NOT execute that connection method unless it implements the specification that defines the profile.
 
 type:
 : OPTIONAL. A profile-specific string identifying the specific method within the selected profile, for example the credential acquisition method for `oauth` or the single sign-on protocol for `sso`. The `oauth` profile requires this member and defines its values in the "OAuth Service Catalog Connection Type" registry ({{oauth-connection-type-registry}}). Profiles that define only one method can omit `type`.
