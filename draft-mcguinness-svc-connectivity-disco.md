@@ -321,7 +321,7 @@ Filtering selects whole service objects. The `connections` array of a returned s
 Filter support requirements:
 
 * A Catalog Provider SHOULD support the `category`, `type`, `profile`, and `id` filters. Support for the other filters is OPTIONAL.
-* A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, `profile`, and `id` filters, so that a client can bound a large result at the server rather than retrieving and locally filtering every page.
+* A Catalog Provider that paginates ({{pagination}}) MUST support the `category`, `type`, `profile`, and `id` filters, so that a client can limit a large result set at the server rather than retrieving and locally filtering every page.
 * Because an unsupported optional filter is ignored rather than rejected, a client MUST NOT assume such a filter was applied, and SHOULD apply its own filtering to the result as needed.
 
 ### Pagination {#pagination}
@@ -761,7 +761,7 @@ For a launch-style connection, access is always browser-mediated, so the `status
 
 Here `available` and `consent_required` differ in whether interactive sign-on is expected, not in whether a browser is involved, since every launch uses the user's user agent.
 
-Before launch, the client MUST establish the identity of the application and of the `launch_uri` from a trusted source ({{autonomous-trust}}), since the catalog alone does not prove them. Federation metadata and its format are defined by the relevant single sign-on specification. This document references such metadata by URL and does not restate it.
+Before launch, the client MUST establish the identity of the application and of the `launch_uri` from a trusted source ({{autonomous-trust}}), since an arbitrary catalog does not prove them. That trusted source MAY be the Catalog Provider itself when the client has established trust in that provider, for example the user's enterprise identity provider reached through verified discovery or explicit configuration. In that common deployment, trust in the provider and its enterprise policy satisfy this requirement, and no second source is needed. The requirement guards against trusting a `launch_uri` from a provider the client has not established trust in. Federation metadata and its format are defined by the relevant single sign-on specification. This document references such metadata by URL and does not restate it.
 
 ### Portal Profile {#profile-portal}
 
@@ -1010,8 +1010,8 @@ After retrieving the catalog, a client connects to a service by selecting a serv
 
 1. Select a service (for example, by `category`, `tags`, or by presenting `display_name` and `description` to the user). For an `mcp` service, the client MAY first fetch the MCP Server Card ({{type-mcp}}) to evaluate the server's capabilities.
 2. Select a connection object. A client SHOULD prefer a connection whose `status` is `connected` or `available` over one whose `status` is `consent_required`, when more than one is suitable.
-3. Apply the connection's trust gate before contacting the authorization server. For the `oauth` profile, re-anchor by confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for the `resource` ({{profile-oauth}}). For other profiles, apply that profile's trust requirements ({{connection-profiles}}).
-4. Determine the client identity from `client_registration`. Do this only after the trust gate in the previous step, so that client metadata or a client-id URL is not disclosed to an unverified authorization server.
+3. Apply the connection's trust gate before contacting the authorization server. For the `oauth` profile, apply its trust gate ({{profile-oauth}}): re-anchor by confirming, via the resource's Protected Resource Metadata {{RFC9728}}, that the connection's `authorization_server` is authoritative for the `resource`; or, for an audience-only `token_exchange` or `id_jag` connection that has no `resource`, apply the audience-only alternative instead. For other profiles, apply that profile's trust requirements ({{connection-profiles}}).
+4. For the `oauth` profile, determine the client identity from `client_registration`. Do this only after the trust gate in the previous step, so that client metadata or a client-id URL is not disclosed to an unverified authorization server.
     * `static`: use the `client_id` member.
     * `dynamic`: register with the authorization server using {{RFC7591}}, subject to the trust policy of {{confused-deputy}}.
     * `client_id_metadata_document`: present an HTTPS URL the client controls as its `client_id`, per {{CIMD}}. The authorization server dereferences it, with no registration call.
@@ -1130,7 +1130,7 @@ Several connection methods are safe only when the client can establish trust fro
 
 * `pre_authorized` ({{profile-pre-authorized}}) and `none` ({{profile-none}}): the client establishes the binding between the service's `endpoint` and the intended service from a trusted source before sending any credential or user data.
 * `proxy_injected` ({{profile-proxy-injected}}): the client establishes trust in the intermediary's `uri` and identity, and relies on the intermediary's credential-selection policy.
-* Launch-style connections, `sso` and `portal` ({{profile-sso}}, {{profile-portal}}): the client establishes the identity of the application and of the `launch_uri` from a trusted source before opening it.
+* Launch-style connections, `sso` and `portal` ({{profile-sso}}, {{profile-portal}}): the client establishes the identity of the application and of the `launch_uri` from a trusted source before opening it. That source MAY be a Catalog Provider the client trusts, such as the user's enterprise identity provider ({{profile-sso}}).
 * Audience-only `token_exchange` and `id_jag` ({{profile-oauth}}): the client independently trusts the connection's `authorization_server` before presenting a `subject_token` or assertion.
 * Dynamic client registration ({{confused-deputy}}): the client gates registration on a trust policy.
 * Any connection whose relationship the client cannot independently corroborate ({{profile-oauth}}): the client independently confirms the resource, regardless of `status`. Catalog-asserted `connected` does not by itself corroborate a relationship.
@@ -1332,6 +1332,7 @@ Reference: This document.
 
 -01
 
+* Corrected the connecting procedure: the `oauth` trust gate covers the audience-only alternative for resource-less `token_exchange`/`id_jag`, and `client_registration` (an `oauth`-only member) is scoped to `oauth` connections. Clarified that the launch-style trusted source MAY be a Catalog Provider the client trusts, such as the user's enterprise identity provider, so `sso`/`portal` do not require a second source.
 * Closed catalog gaps surfaced in review: a `warnings` member reports incomplete or degraded aggregation, so a client does not mistake an unreachable source for lack of access; a freshness paragraph states the catalog is a polling-with-conditional-requests snapshot with no push mechanism; `preferred` and `deprecated` service members aid selection and lifecycle; and a `request-access` link relation gives a remediation path for services the user cannot currently use.
 * Clarified that the discoverable Service Catalog Endpoint URL is host-level and MUST NOT encode per-user information (the catalog is scoped by the access token, not the URL), reconciling its publication in public metadata with the privacy requirement that per-user data stay on an authenticated channel.
 * Sharpened the positioning against per-ecosystem registries (for example, the Model Context Protocol registry): the catalog is the cross-protocol, per-user, identity-provider-anchored layer above them, referencing each ecosystem's descriptor or registry rather than competing with it, so a per-ecosystem per-user facet would stay within its protocol while this remains the cross-protocol aggregation.
