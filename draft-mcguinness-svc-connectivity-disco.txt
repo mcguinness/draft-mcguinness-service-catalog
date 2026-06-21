@@ -79,6 +79,7 @@ Table of Contents
    3.  Overview
    4.  The Service Catalog Endpoint
      4.1.  Discovering the Catalog Endpoint
+       4.1.1.  Catalog Metadata
      4.2.  Catalog Request
        4.2.1.  Filtering
        4.2.2.  Pagination
@@ -431,18 +432,24 @@ Table of Contents
           client SHOULD prefer it when present.
 
        *  If the metadata omits service_catalog_endpoint, a provider co-
-          located with the issuer MAY serve the endpoint at the well-
-          known URI /.well-known/service-catalog using the issuer's
-          scheme, host, and port [RFC8615] (see Section 11.3).  This
+          located with the issuer MAY publish a catalog metadata
+          document at the well-known URI /.well-known/service-catalog
+          using the issuer's scheme, host, and port [RFC8615] (see
+          Section 4.1.1 and Section 11.3).  That document is host-level
+          metadata, not the per-user catalog, and MAY be cached.  Its
+          service_catalog_endpoint member names the Service Catalog
+          Endpoint, which the client then calls as in step 3.  This
           fallback is an optional deployment convenience, not a
           requirement.  If the issuer identifier contains a path
           component, clients SHOULD use issuer metadata or explicit
-          configuration rather than infer a path-relative catalog URL.
+          configuration rather than infer a path-relative well-known
+          URL.
 
-       *  A client MUST NOT treat a catalog at an origin different from
-          the issuer as authoritative for the issuer's users on the
-          basis of URL structure alone.  Cross-origin authority requires
-          the metadata value or explicit configuration.
+       *  A client MUST NOT treat a catalog, or a catalog metadata
+          document, at an origin different from the issuer as
+          authoritative for the issuer's users on the basis of URL
+          structure alone.  Cross-origin authority requires the metadata
+          value or explicit configuration.
 
    3.  Retrieve the catalog.  The client sends an authenticated request
        to the endpoint with the user's access token (Section 4.2).  The
@@ -456,6 +463,27 @@ Table of Contents
    separately, the access token presented to the endpoint MUST be one
    the Catalog Provider accepts (for example, issued with the Catalog
    Provider as an audience).
+
+4.1.1.  Catalog Metadata
+
+   A catalog metadata document is a JSON [RFC8259] object that describes
+   a Catalog Provider at a host, separately from the per-user catalog it
+   serves.  It is host-level, contains no per-user data, and MAY be
+   cached and served publicly.  A provider publishes it at the well-
+   known URI /.well-known/service-catalog (Section 11.3), served with
+   the media type application/json.  It has the following member:
+
+   service_catalog_endpoint:  REQUIRED.  A JSON string containing the
+      absolute HTTPS URL, with no fragment component, of the per-user
+      Service Catalog Endpoint (Section 4.2).  This is the same value an
+      authorization server MAY advertise in its metadata (Section 11.1).
+      When both are present, they MUST be consistent.
+
+   A catalog metadata document MAY include additional members describing
+   the catalog service.  Clients MUST ignore members they do not
+   understand.  The document is metadata only.  The per-user catalog is
+   obtained by an authenticated request to the service_catalog_endpoint
+   it names, not from the well-known URI itself.
 
 4.2.  Catalog Request
 
@@ -504,7 +532,7 @@ Table of Contents
 
    The following is an example request for the user's email services:
 
-   GET /.well-known/service-catalog?category=email HTTP/1.1
+   GET /service-catalog?category=email HTTP/1.1
    Host: catalog.example.com
    Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
    Accept: application/service-catalog+json
@@ -625,7 +653,7 @@ Table of Contents
    The following example requests the next page using a cursor from a
    previous response:
 
-   GET /.well-known/service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
+   GET /service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
    Host: catalog.example.com
    Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
    Accept: application/service-catalog+json
@@ -2515,6 +2543,11 @@ Table of Contents
 
    Status: permanent
 
+   Related Information: Identifies a catalog metadata document
+   (Section 4.1.1), a JSON object whose service_catalog_endpoint member
+   names the per-user Service Catalog Endpoint.  The well-known URI does
+   not itself return the per-user catalog.
+
 11.4.  Service Catalog Service Type Registry
 
    IANA is requested to establish the "Service Catalog Service Type"
@@ -2898,6 +2931,15 @@ Table of Contents
 Document History
 
    -01
+
+   *  Redefined the /.well-known/service-catalog URI as a cacheable,
+      host-level catalog metadata document whose
+      service_catalog_endpoint member names the per-user Service Catalog
+      Endpoint, rather than serving the per-user catalog at the well-
+      known path itself.  This matches the cacheable-metadata convention
+      of other well-known URIs and keeps the authenticated, per-user
+      catalog at a separate endpoint.  The authorization server metadata
+      value remains the primary discovery mechanism.
 
    *  Titled the document "Per-User Service Connectivity Catalog",
       naming the artifact the document is built around (the catalog,
