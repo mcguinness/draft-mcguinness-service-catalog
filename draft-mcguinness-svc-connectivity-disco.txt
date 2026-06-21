@@ -1088,11 +1088,13 @@ Table of Contents
       profile MUST NOT execute that connection method unless it
       implements the specification that defines the profile.
 
-   type:  OPTIONAL.  A profile-specific string identifying the
-      credential acquisition method within the selected profile.  The
-      oauth profile requires this member and defines its values in the
-      "OAuth Service Catalog Connection Type" registry (Section 11.7).
-      Profiles that define only one acquisition method can omit type.
+   type:  OPTIONAL.  A profile-specific string identifying the specific
+      method within the selected profile, for example the credential
+      acquisition method for oauth or the single sign-on protocol for
+      sso.  The oauth profile requires this member and defines its
+      values in the "OAuth Service Catalog Connection Type" registry
+      (Section 11.7).  Profiles that define only one method can omit
+      type.
 
    present:  OPTIONAL.  A JSON object describing how the client presents
       its credential (the service-authentication layer, distinct from
@@ -1184,24 +1186,24 @@ Table of Contents
          confirmation and trust checks of Section 5.7.1.  A client MUST
          still handle an authentication failure at call time.
 
-      *  available: The client can obtain a credential using this method
-         without further user interaction (for example, a token exchange
-         or client credentials grant).
+      *  available: The client can connect using this method without
+         further user interaction (for example, a token exchange or
+         client credentials grant).
 
-      *  consent_required: Obtaining a credential requires user
-         interaction (for example, an authorization code grant with user
-         consent).
+      *  consent_required: Connecting requires user interaction (for
+         example, an authorization code grant with user consent, or an
+         interactive single sign-on).
 
       *  unavailable: The method is described for completeness but
          cannot currently be used by this user.
 
       These four values are the protocol-relevant distinctions: whether
-      a credential exists, can be obtained without interaction, requires
-      interaction, or is unusable.  Finer operational states (for
-      example, pending administrator approval, an expired credential, or
-      a user-disconnected account) are deployment details, are not
-      standardized, and are conveyed, if at all, through other members
-      or out of band.
+      a usable connection already exists, can be established without
+      interaction, requires interaction, or is unusable.  Finer
+      operational states (for example, pending administrator approval,
+      an expired credential, or a user-disconnected account) are
+      deployment details, are not standardized, and are conveyed, if at
+      all, through other members or out of band.
 
    account:  OPTIONAL.  A JSON object identifying the account this
       connection is associated with, when the user holds (or can
@@ -2440,6 +2442,13 @@ Table of Contents
       where cross-catalog correlation is intended, and a uid MUST NOT be
       derived from, or encode, personal data.
 
+   *  A service object's logo_uri (Section 5.2) is an external image
+      reference.  A client that fetches it (for example, in an
+      application launcher) discloses to the image host that the user is
+      viewing the service, and the image can act as a tracking beacon.
+      A client SHOULD treat it as it would any third-party image, and a
+      Catalog Provider SHOULD host logos on an origin it controls.
+
    *  The Catalog Provider SHOULD log access in accordance with
       applicable privacy regulations and SHOULD minimize retention of
       catalog requests.
@@ -2909,6 +2918,11 @@ Document History
       and the guiding principle, and folded the distinctive capabilities
       (capability-based discovery, first-class MCP/A2A, intent-scoped
       planning) into a short paragraph after the Minimal Core.
+
+   *  Generalized the base type and status member definitions so they
+      cover launch-style connections, not only credential acquisition,
+      and added a privacy note for logo_uri as an external image
+      reference.
 
    *  Renamed the service object's base_uri member to endpoint, a type-
       neutral name that reads correctly for http, mcp, and a2a services,
