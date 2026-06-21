@@ -227,9 +227,8 @@ This section summarizes how a client uses the catalog end to end. The sections t
 2. Authenticate to the catalog and retrieve it ({{catalog-request}}).
 3. Filter and select a service ({{filtering}}, {{service-object}}).
 4. Select a connection method ({{connection-object}}).
-5. Establish trust in the selected connection as its profile requires, before obtaining a credential (for the `oauth` profile, this means re-anchoring trust to the resource's metadata) ({{connection-profiles}}).
-6. Obtain the credential for the selected connection ({{connecting}}).
-7. Call the service, presenting the credential ({{connecting}}).
+5. Establish trust in the selected connection as its profile requires (for the `oauth` profile, this means re-anchoring trust to the resource's metadata) ({{connection-profiles}}).
+6. Connect ({{connecting}}). For a credential-based connection, obtain the credential and call the service presenting it. For a launch-style connection (`sso` or `portal`), open the connection's `launch_uri` in a user agent.
 
 # The Service Catalog Endpoint
 
@@ -346,7 +345,7 @@ The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}
 
 Authorization applies at two distinct levels, and the catalog speaks only to the first:
 
-* Discoverability authorization: whether the Catalog Provider may show this service and connection method to this user and client. Inclusion in the catalog is the provider's assertion that it may. The basis is provider-defined and may combine, for example, authorization server policy, enterprise administrator policy, the user's account state, and the service provider's registration state; this document does not mandate a particular basis.
+* Discoverability authorization: whether the Catalog Provider may show this service and connection method to this user and client. Inclusion in the catalog is the provider's assertion that it may. The basis is provider-defined and may combine, for example, authorization server policy, enterprise administrator policy, the user's account state, and the service provider's registration state. This document does not mandate a particular basis.
 * Runtime authorization: whether a given call will actually succeed. This decision belongs to the service and its authorization server, is made at call time, and is not delegated to the Catalog Provider.
 
 The following constraints follow:
@@ -547,7 +546,7 @@ title:
 
 ## Connection Object {#connection-object}
 
-A connection object describes one connection method for a service, separating two layers: how the client *acquires* a credential and how it *presents* that credential when calling the service. A connection object MUST carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.
+A connection object describes one connection method for a service. For a credential-based method it separates two layers: how the client *acquires* a credential and how it *presents* that credential when calling the service. A launch-style method instead carries a `launch_uri` the user agent opens ({{profile-sso}}). A connection object MUST carry enough information for the client either to execute the connection directly or to deterministically fetch the remaining information it needs. Heavy or detailed metadata (for example, the full authorization server metadata document) is referenced by URL rather than inlined.
 
 This document defines the core catalog protocol and several initial connection profiles in one specification. The core catalog is independent of any credential acquisition mechanism. A connection profile defines the profile-specific members, processing rules, and security considerations for one family of connection methods. Future specifications may define additional profiles or update the profiles defined here.
 
@@ -719,13 +718,22 @@ launch_uri:
 relay_state:
 : OPTIONAL. A value the launcher passes to deep-link into a location within the application after sign-on. For `saml`, it is the SAML RelayState. For `oidc`, it is the `target_link_uri` of third-party-initiated login.
 
-An `sso` connection is completed by opening `launch_uri` in a user agent, not by the client obtaining a token. The `present` member ({{connection-object}}) does not apply. A `status` of `connected` means the application is assigned to, or provisioned for, the user. Because access is browser-mediated, an `sso` connection is launchable on the user's behalf but is not programmatically callable by the client.
+An `sso` connection is completed by opening `launch_uri` in a user agent, not by the client obtaining a token. The `present` member ({{connection-object}}) does not apply. Because access is browser-mediated, an `sso` connection is launchable on the user's behalf but is not programmatically callable by the client.
+
+For a launch-style connection, access is always browser-mediated, so the `status` vocabulary describes assignment and sign-on readiness rather than credential acquisition:
+
+* `connected`: the application is assigned to, or provisioned for, the user and is ready to launch.
+* `consent_required`: launch will require interactive sign-on or consent the user has not yet completed.
+* `available`: the application can be launched, but the provider does not distinguish a prior relationship.
+* `unavailable`: the application is known but cannot currently be launched.
+
+Here `available` and `consent_required` differ in whether interactive sign-on is expected, not in whether a browser is involved, since every launch uses the user's user agent.
 
 Before launch, the client MUST establish the identity of the application and of the `launch_uri` from a trusted source ({{autonomous-trust}}), since the catalog alone does not prove them. Federation metadata and its format are defined by the relevant single sign-on specification. This document references such metadata by URL and does not restate it.
 
 ### Portal Profile {#profile-portal}
 
-The `portal` profile describes a launch-only application: a link the user opens, where the application handles authentication by its own means, such as a bookmarked web application or one behind a password manager. It is the catalog equivalent of a single sign-on bookmark tile. Its only member is `launch_uri`, a URI the user agent opens. Like `sso`, a `portal` connection is browser-mediated and launchable on the user's behalf, the `present` member does not apply, and the client MUST establish the identity of the `launch_uri` from a trusted source before launch ({{autonomous-trust}}).
+The `portal` profile describes a launch-only application: a link the user opens, where the application handles authentication by its own means, such as a bookmarked web application or one behind a password manager. It is the catalog equivalent of a single sign-on bookmark tile. Its only member is `launch_uri`, a URI the user agent opens. Like `sso`, a `portal` connection is browser-mediated and launchable on the user's behalf, the `present` member does not apply, the launch-style `status` semantics above apply, and the client MUST establish the identity of the `launch_uri` from a trusted source before launch ({{autonomous-trust}}).
 
 ### Public Service Profile {#profile-none}
 
@@ -986,7 +994,7 @@ This specification does not define any new credential issuance mechanism. Each c
 
 # Intent-Based Use and Resource Discovery {#intent}
 
-An agent typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog's role here is bounded. It provides the candidate services (filterable by `category` and `tags`) and, per connection, an upper bound on the available access ({{connection-object}}). It does not compute the minimal access a given task needs: mapping an intent to the least-privilege request is the client's job, using the service's descriptor and, for Rich Authorization Requests, the type metadata referenced below. The catalog supports planning before commitment in two ways.
+A client typically uses the catalog to plan: it discovers the services a user can reach, decides which it needs for the user's goal, and requests only the access that goal requires. The catalog's role here is bounded. It provides the candidate services (filterable by `category` and `tags`) and, per connection, an upper bound on the available access ({{connection-object}}). It does not compute the minimal access a given task needs: mapping an intent to the least-privilege request is the client's job, using the service's descriptor and, for Rich Authorization Requests, the type metadata referenced below. The catalog supports planning before commitment in two ways.
 
 First, a client can plan from descriptors without connecting:
 
@@ -1031,7 +1039,7 @@ Agent and tool descriptors (A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERV
 
 APIs.json {{APISJSON}} provides a public "sitemap for APIs" with no per-user authorization context. A service object reuses its discoverability model: `display_name`, `description`, `endpoint` (its `baseURL`), `tags`, and `links` (its typed `properties`). A Catalog Provider MAY additionally serve a static APIs.json document for tooling that consumes that format. Such a document is out of scope for this specification.
 
-Agentic Resource Discovery {{ARD}} defines a public, cross-organization discovery layer for agentic resources: an organization publishes a static catalog at a well-known location on its domain, registries crawl and index it, and an agent finds capabilities by intent and verifies the publisher's cryptographic identity before connecting. It operates at a different, complementary layer. It is public, crawlable, and pre-invocation, anchoring trust in a signed publisher identity and delegating authentication to each artifact's native protocol; the catalog defined here is per-user, authenticated, and (for the reasons in {{privacy-considerations}}) deliberately not crawlable, anchoring trust in the user's identity provider and in re-anchoring each connection to the resource's metadata ({{profile-oauth}}), and contributing the layer the former leaves open: which services a specific user and client can reach, and how each connection's credential is acquired and presented. A service object's optional `uid` ({{service-object}}) lets a client correlate one service across the two.
+Agentic Resource Discovery {{ARD}} defines a public, cross-organization discovery layer for agentic resources: an organization publishes a static catalog at a well-known location on its domain, registries crawl and index it, and an agent finds capabilities by intent and verifies the publisher's cryptographic identity before connecting. It operates at a different, complementary layer. It is public, crawlable, and pre-invocation, anchoring trust in a signed publisher identity and delegating authentication to each artifact's native protocol. The catalog defined here is per-user, authenticated, and (for the reasons in {{privacy-considerations}}) deliberately not crawlable. It anchors trust in the user's identity provider and in re-anchoring each connection to the resource's metadata ({{profile-oauth}}). It contributes the layer the former leaves open: which services a specific user and client can reach, and how each connection is established. A service object's optional `uid` ({{service-object}}) lets a client correlate one service across the two.
 
 Several of the above are evolving specifications: A2A {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and {{RAR-METADATA}} are referenced here as directional rather than stable dependencies. The catalog's core function (per-user enumeration of services and their connection methods) does not depend on any of them. A Catalog Provider and client can interoperate using only OAuth 2.0 metadata ({{RFC9728}}, {{RFC8414}}) and human-readable links, and treat references to those evolving formats as optional enhancements.
 
@@ -1104,6 +1112,16 @@ The Client ID Metadata Document mechanism ({{CIMD}}) is a lighter-weight alterna
 ## Authorization Server Mix-Up
 
 A catalog directs a client to potentially many authorization servers, and an agent may run several authorization flows concurrently. These are the conditions under which authorization server mix-up attacks arise. A client using the `oauth` profile's `authorization_code` connection type SHOULD use the `iss` authorization response parameter {{RFC9207}} and verify that it identifies the expected authorization server, and MUST otherwise follow the mix-up mitigations of current OAuth security best practice. Re-anchoring each connection's `authorization_server` to the resource's Protected Resource Metadata ({{profile-oauth}}) further reduces this risk.
+
+## Launch-Style Single Sign-On
+
+A launch-style connection ({{profile-sso}}, {{profile-portal}}) directs a user agent to a catalog-supplied `launch_uri`, and carries the web single sign-on risks of that flow:
+
+* The `launch_uri`, and any `relay_state` or `target_link_uri`, are catalog-supplied and untrusted. A client MUST confirm the `launch_uri` against a trusted source before opening it ({{autonomous-trust}}). It MUST NOT allow a catalog-supplied `relay_state` or `target_link_uri` to drive an open redirect or a deep link outside the intended application.
+* A `launch_uri` may invoke identity-provider-initiated sign-on, which accepts an unsolicited assertion and lacks the request-to-response binding of a service-provider-initiated flow. A client SHOULD prefer service-provider-initiated sign-on where the application supports it.
+* The flow completes in the user's own user agent and establishes a session for the user, not for the client. A client MUST NOT treat completion as a credential it holds or can replay.
+
+Protocol-level mitigations are defined by the relevant single sign-on specification ({{OPENID-CONNECT}} and the SAML specifications). This document does not restate them.
 
 # Privacy Considerations {#privacy-considerations}
 
@@ -1261,6 +1279,7 @@ Reference: This document.
 * Renamed the service object's `base_uri` member to `endpoint`, a type-neutral name that reads correctly for `http`, `mcp`, and `a2a` services, consistent with the type-neutral core.
 * Split service identity into a human-readable `display_name` and an optional machine-readable `name` (a slug, distinct from the opaque `id`), added a `logo_uri` member, and renamed the human-readable catalog and group fields to `display_name` and `group_display_name`. The OpenAPI `apiKey` `name` inside `present` is unaffected.
 * Propagated launch-style access through the credential-centric text: the connecting procedure now skips the credential steps for `sso`/`portal` and opens `launch_uri`, the `connections` member describes connecting rather than obtaining credentials, and the autonomous-client trust list includes launch-style connections. Renamed the `proxy` object's `endpoint` member to `uri` to avoid overloading the service `endpoint` name.
+* Hardened launch-style single sign-on after expert review: added a Security Considerations subsection on launch-style risks (untrusted `launch_uri`/`relay_state`, identity-provider-initiated sign-on, completion in the user's user agent), defined the `status` vocabulary for launch-style connections, and finished generalizing the overview and connection-object framing to cover launch-style alongside credential acquisition.
 * Added launch-style connection profiles so the catalog is a superset of an enterprise single sign-on application catalog. The `sso` profile (with an "SSO Service Catalog Connection Type" registry seeded with `saml`, `oidc`, and `ws_fed`) carries a `launch_uri`, where `oidc` is first class via third-party-initiated login. The `portal` profile covers launch-only bookmark applications. Generalized the connection-method definition to cover launch-style access, in which the identity provider federates a browser session and the client holds no credential.
 * Grounded the Catalog Provider in the existing enterprise single sign-on application catalog, with an identity provider as a natural provider, and stated the small-core and separately-evolvable-profiles principle as a front-door design statement. Made the autonomy value proposition precise. An agent autonomously discovers, plans, and reconnects to already-linked services, while automated connection to an unfamiliar service requires prior trust, local policy, or user confirmation.
 * Restructured connection methods into a core connection object plus connection profiles (`oauth`, `pre_authorized`, `proxy_injected`, `none`), with profile-specific acquisition `type`s for `oauth` (`token_exchange`, `authorization_code`, `client_credentials`, `id_jag`) in their own registry.
