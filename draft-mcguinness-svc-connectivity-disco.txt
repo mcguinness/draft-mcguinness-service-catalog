@@ -1152,9 +1152,9 @@ Table of Contents
    profile:  REQUIRED.  A string giving the connection profile, drawn
       from the "Service Catalog Connection Profile" registry
       (Section 11.6).  This document defines oauth, pre_authorized,
-      proxy_injected, and none.  A client that encounters an unknown
-      profile MUST NOT execute that connection method unless it
-      implements the specification that defines the profile.
+      proxy_injected, sso, portal, and none.  A client that encounters
+      an unknown profile MUST NOT execute that connection method unless
+      it implements the specification that defines the profile.
 
    type:  OPTIONAL.  A profile-specific string identifying the specific
       method within the selected profile, for example the credential
