@@ -2137,6 +2137,22 @@ Table of Contents
    reachable services and how to connect to each.  It composes with,
    rather than replaces, the following.
 
+   Enterprise identity providers already expose per-user application
+   catalogs: the assigned-application APIs behind single sign-on app
+   launchers, such as Okta's assigned-applications API [OKTA-APPS] and
+   Microsoft Graph's app role assignments [MSGRAPH-APPROLES], which
+   drive the MyApps portal and comparable dashboards.  These are the
+   closest existing analogue to this document, a per-user,
+   authorization-aware list of reachable services.  They are, however,
+   provider-specific, oriented to interactive single sign-on, and silent
+   on how to connect programmatically.  This document standardizes that
+   per-user view across identity providers and enriches it with machine-
+   readable connection methods spanning credential acquisition and
+   launch-style single sign-on, and with service types beyond web
+   applications (HTTP APIs, MCP servers, and A2A agents).  The sso and
+   portal profiles (Section 5.7.4, Section 5.7.5) cover the interactive
+   launch case those APIs already serve.
+
    OAuth 2.0 Token Exchange Target Service Discovery
    [TOKEN-EXCHANGE-DISCOVERY] discovers the audiences, resources, and
    scopes a subject token may be exchanged for.  It is specialized to
@@ -2179,6 +2195,20 @@ Table of Contents
    capabilities and how it authenticates callers.  The catalog
    references these (via links) rather than duplicating them, and adds
    the per-user authorization context they lack.
+
+   Per-ecosystem registries, such as the Model Context Protocol registry
+   [MCP-REGISTRY], enumerate the servers or agents that exist within one
+   protocol, for public discovery rather than per-user authorization.
+   This document is the cross-protocol, per-user layer above them.  For
+   an authenticated user it enumerates which services are reachable,
+   across HTTP APIs, MCP servers, A2A agents, and single sign-on
+   applications, and how to connect to each, referencing each
+   ecosystem's own descriptor or registry rather than restating it.
+   Even if a per-ecosystem registry gains a per-user facet, that facet
+   stays within its protocol.  The contribution here is the identity-
+   provider-anchored aggregation across protocols and administrative
+   domains: the per-user entry point a client consults first, from which
+   it follows references into the per-protocol descriptors.
 
    APIs.json [APISJSON] provides a public "sitemap for APIs" with no
    per-user authorization context.  A service object reuses its
@@ -2944,6 +2974,19 @@ Table of Contents
               "OpenID Federation 1.0", 2025,
               <https://openid.net/specs/openid-federation-1_0.html>.
 
+   [OKTA-APPS]
+              "Okta Applications API",
+              <https://developer.okta.com/docs/reference/api/apps/>.
+
+   [MSGRAPH-APPROLES]
+              "Microsoft Graph: List appRoleAssignments granted to a
+              user", <https://learn.microsoft.com/en-us/graph/api/user-
+              list-approleassignments>.
+
+   [MCP-REGISTRY]
+              "Model Context Protocol Registry",
+              <https://github.com/modelcontextprotocol/registry>.
+
    [ARD]      "Agentic Resource Discovery", 2026,
               <https://agenticresourcediscovery.org/>.
 
@@ -2974,6 +3017,21 @@ Table of Contents
 Document History
 
    -01
+
+   *  Sharpened the positioning against per-ecosystem registries (for
+      example, the Model Context Protocol registry): the catalog is the
+      cross-protocol, per-user, identity-provider-anchored layer above
+      them, referencing each ecosystem's descriptor or registry rather
+      than competing with it, so a per-ecosystem per-user facet would
+      stay within its protocol while this remains the cross-protocol
+      aggregation.
+
+   *  Added a Relationship to Other Work entry for the incumbent per-
+      user application catalogs (Okta's assigned-applications API and
+      Microsoft Graph app role assignments), positioning the document as
+      standardizing that per-user view across identity providers and
+      enriching it with programmatic connection methods and service
+      types beyond web applications.
 
    *  Added a Trust Frameworks security section that lets a deployment
       discharge the document's trust decisions (re-anchoring, the
