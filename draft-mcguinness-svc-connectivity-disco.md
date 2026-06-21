@@ -362,6 +362,8 @@ When constructing the catalog, the Catalog Provider:
 
 The Catalog Provider MAY include HTTP caching headers as specified in {{RFC9111}}. Because the catalog is user specific, any cache directives MUST mark the response as private (for example, `Cache-Control: private`). To let a client refresh a large per-user catalog cheaply, the Catalog Provider SHOULD support conditional requests by returning an `ETag` (and/or `Last-Modified`) and honoring `If-None-Match` (and/or `If-Modified-Since`) {{RFC9110}}, responding 304 (Not Modified) when the catalog is unchanged.
 
+The catalog is a point-in-time snapshot of a per-user state that changes as access is granted, revoked, or provisioned. A client MUST NOT assume a previously retrieved catalog is still current. It detects change by re-fetching, using conditional requests and the `updated` time, and MAY use a `Cache-Control` `max-age` as a refresh hint. This document defines no push or subscription mechanism. A deployment that needs near-real-time change delivery provides it out of band.
+
 ### Authority for Inclusion {#inclusion}
 
 Authorization applies at two distinct levels, and the catalog speaks only to the first:
@@ -384,7 +386,7 @@ A service appears in the catalog when the user is permitted to know it exists, t
 * Discoverable: the service is listed at all. A Catalog Provider MUST omit services the user is not permitted to discover.
 * Connectable without interaction: at least one connection has `status` `available` or `connected`.
 * Connectable after consent: a connection has `status` `consent_required`.
-* Known but currently unavailable: every connection has `status` `unavailable`, for example, the service is licensed but not provisioned for this user, or is temporarily blocked by policy. The service is still shown so the user or agent knows it exists and how it might be enabled (for example, via a `sign-up` link).
+* Known but currently unavailable: every connection has `status` `unavailable`, for example, the service is licensed but not provisioned for this user, or is temporarily blocked by policy. The service is still shown so the user or agent knows it exists and how it might be enabled (for example, via a `sign-up` link to create an account, or a `request-access` link to request access the user does not yet have).
 
 In short, inclusion answers "may the user know about this service," and `status` answers "can the user connect, and how."
 
@@ -439,6 +441,9 @@ updated:
 next_cursor:
 : OPTIONAL. An opaque string. If present, more services are available than were returned. The client obtains the next page by repeating the request with the `cursor` query parameter set to this value (see {{pagination}}). If absent, no further services are available.
 
+warnings:
+: OPTIONAL. An array of warning objects reporting that the catalog may be incomplete or degraded, for example because the Catalog Provider could not enumerate one of the sources it aggregates. Each warning object has a REQUIRED `code` (a short machine-readable string), an OPTIONAL `message` (a human-readable explanation), and an OPTIONAL `source` (an identifier of the affected source or administrative domain). When a warning indicates incomplete enumeration, a client MUST NOT treat the absence of a service from the catalog as evidence that the user cannot reach it.
+
 Extensions MAY define additional members of the catalog object. Clients MUST ignore members they do not understand.
 
 ## Service Object {#service-object}
@@ -481,6 +486,12 @@ categories:
 
 tags:
 : OPTIONAL. An array of free-form tag strings categorizing the service.
+
+preferred:
+: OPTIONAL. A boolean. When `true`, the Catalog Provider marks this as a preferred choice among comparable services the user could use for the same purpose (for example, the primary service in a `category` or `group`), to aid selection. It is a hint, not a constraint. When absent, the default is `false`.
+
+deprecated:
+: OPTIONAL. A boolean. When `true`, the service is deprecated and may be withdrawn. A client SHOULD prefer a non-deprecated alternative when one is suitable, and SHOULD NOT begin a new relationship with a deprecated service without reason. When absent, the default is `false`.
 
 links:
 : OPTIONAL. An array of **link objects** (see {{link-object}}) pointing to related resources such as documentation, sign-up, or the MCP Server Card, using link relation types {{RFC8288}}.
@@ -554,7 +565,7 @@ The `categories` member of a service object, and the `category` query parameter 
 A link object points to a resource related to a service. It is modeled on the Web Linking framework {{RFC8288}} and contains the following members:
 
 rel:
-: REQUIRED. A link relation type {{RFC8288}}: either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include `service` (the service's primary endpoint or home), `service-desc` (a machine-readable API description such as an OpenAPI document), `service-doc` (human-readable documentation), `terms-of-service`, `privacy-policy`, `help`, `status` (a service status page), `icon`, `describedby` (for example, a Protected Resource Metadata document {{RFC9728}}), `sign-up` (where a user can sign up for the service), `mcp-server-card` (the service's MCP Server Card {{MCP-SERVER-CARD}}), and `agent-card` (the service's A2A Agent Card {{A2A}}). The relation types `sign-up`, `mcp-server-card`, and `agent-card` are registered by this document (see {{iana-link-relations}}).
+: REQUIRED. A link relation type {{RFC8288}}: either a registered relation type or an extension relation type (an absolute URI). Relation types commonly used in a catalog include `service` (the service's primary endpoint or home), `service-desc` (a machine-readable API description such as an OpenAPI document), `service-doc` (human-readable documentation), `terms-of-service`, `privacy-policy`, `help`, `status` (a service status page), `icon`, `describedby` (for example, a Protected Resource Metadata document {{RFC9728}}), `sign-up` (where a user can sign up for the service), `request-access` (where the user can request access to a service they cannot currently use), `mcp-server-card` (the service's MCP Server Card {{MCP-SERVER-CARD}}), and `agent-card` (the service's A2A Agent Card {{A2A}}). The relation types `sign-up`, `request-access`, `mcp-server-card`, and `agent-card` are registered by this document (see {{iana-link-relations}}).
 
 href:
 : REQUIRED. A URI giving the target of the link.
@@ -1296,6 +1307,12 @@ Description: Refers to a resource where a user can sign up for the linked servic
 
 Reference: This document.
 
+Relation Name: `request-access`
+
+Description: Refers to a resource where a user can request access to the linked service that they cannot currently use.
+
+Reference: This document.
+
 Relation Name: `mcp-server-card`
 
 Description: Refers to the Model Context Protocol Server Card for the linked service.
@@ -1315,6 +1332,7 @@ Reference: This document.
 
 -01
 
+* Closed catalog gaps surfaced in review: a `warnings` member reports incomplete or degraded aggregation, so a client does not mistake an unreachable source for lack of access; a freshness paragraph states the catalog is a polling-with-conditional-requests snapshot with no push mechanism; `preferred` and `deprecated` service members aid selection and lifecycle; and a `request-access` link relation gives a remediation path for services the user cannot currently use.
 * Clarified that the discoverable Service Catalog Endpoint URL is host-level and MUST NOT encode per-user information (the catalog is scoped by the access token, not the URL), reconciling its publication in public metadata with the privacy requirement that per-user data stay on an authenticated channel.
 * Sharpened the positioning against per-ecosystem registries (for example, the Model Context Protocol registry): the catalog is the cross-protocol, per-user, identity-provider-anchored layer above them, referencing each ecosystem's descriptor or registry rather than competing with it, so a per-ecosystem per-user facet would stay within its protocol while this remains the cross-protocol aggregation.
 * Added a Relationship to Other Work entry for the incumbent per-user application catalogs (Okta's assigned-applications API and Microsoft Graph app role assignments), positioning the document as standardizing that per-user view across identity providers and enriching it with programmatic connection methods and service types beyond web applications.
