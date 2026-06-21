@@ -239,12 +239,21 @@ The Service Catalog Endpoint is anchored to the user's identity provider: the OA
 2. Read the issuer metadata. The client fetches the issuer's authorization server metadata {{RFC8414}} (an OpenID Connect deployment uses the OpenID Provider configuration, which reuses the same metadata registry) and reads the `service_catalog_endpoint` value ({{iana-as-metadata}}), having verified that the metadata `issuer` matches the expected issuer. The metadata value is a JSON string containing an absolute HTTPS URL with no fragment component.
 
     * The metadata value is the primary, RECOMMENDED mechanism. The client SHOULD prefer it when present.
-    * If the metadata omits `service_catalog_endpoint`, a provider co-located with the issuer MAY serve the endpoint at the well-known URI `/.well-known/service-catalog` using the issuer's scheme, host, and port {{RFC8615}} (see {{iana-well-known}}). This fallback is an optional deployment convenience, not a requirement. If the issuer identifier contains a path component, clients SHOULD use issuer metadata or explicit configuration rather than infer a path-relative catalog URL.
-    * A client MUST NOT treat a catalog at an origin different from the issuer as authoritative for the issuer's users on the basis of URL structure alone. Cross-origin authority requires the metadata value or explicit configuration.
+    * If the metadata omits `service_catalog_endpoint`, a provider co-located with the issuer MAY publish a catalog metadata document at the well-known URI `/.well-known/service-catalog` using the issuer's scheme, host, and port {{RFC8615}} (see {{catalog-metadata}} and {{iana-well-known}}). That document is host-level metadata, not the per-user catalog, and MAY be cached. Its `service_catalog_endpoint` member names the Service Catalog Endpoint, which the client then calls as in step 3. This fallback is an optional deployment convenience, not a requirement. If the issuer identifier contains a path component, clients SHOULD use issuer metadata or explicit configuration rather than infer a path-relative well-known URL.
+    * A client MUST NOT treat a catalog, or a catalog metadata document, at an origin different from the issuer as authoritative for the issuer's users on the basis of URL structure alone. Cross-origin authority requires the metadata value or explicit configuration.
 
 3. Retrieve the catalog. The client sends an authenticated request to the endpoint with the user's access token ({{catalog-request}}). The catalog is scoped to the user identified by the access token, not by the endpoint URL.
 
 A client MAY instead be configured directly with the absolute URL of a Service Catalog Endpoint, in which case steps 1 and 2 are not used. The Catalog Provider that hosts the endpoint MAY be co-located with the authorization server or operated separately. When operated separately, the access token presented to the endpoint MUST be one the Catalog Provider accepts (for example, issued with the Catalog Provider as an audience).
+
+### Catalog Metadata {#catalog-metadata}
+
+A catalog metadata document is a JSON {{RFC8259}} object that describes a Catalog Provider at a host, separately from the per-user catalog it serves. It is host-level, contains no per-user data, and MAY be cached and served publicly. A provider publishes it at the well-known URI `/.well-known/service-catalog` ({{iana-well-known}}), served with the media type `application/json`. It has the following member:
+
+service_catalog_endpoint:
+: REQUIRED. A JSON string containing the absolute HTTPS URL, with no fragment component, of the per-user Service Catalog Endpoint ({{catalog-request}}). This is the same value an authorization server MAY advertise in its metadata ({{iana-as-metadata}}). When both are present, they MUST be consistent.
+
+A catalog metadata document MAY include additional members describing the catalog service. Clients MUST ignore members they do not understand. The document is metadata only. The per-user catalog is obtained by an authenticated request to the `service_catalog_endpoint` it names, not from the well-known URI itself.
 
 ## Catalog Request {#catalog-request}
 
@@ -261,7 +270,7 @@ A client SHOULD scope its request to the capability or service it needs, using t
 
 The following is an example request for the user's email services:
 
-    GET /.well-known/service-catalog?category=email HTTP/1.1
+    GET /service-catalog?category=email HTTP/1.1
     Host: catalog.example.com
     Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
     Accept: application/service-catalog+json
@@ -320,7 +329,7 @@ The following rules apply across a pagination sequence:
 
 The following example requests the next page using a cursor from a previous response:
 
-    GET /.well-known/service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
+    GET /service-catalog?cursor=b2Zmc2V0OjUw HTTP/1.1
     Host: catalog.example.com
     Authorization: Bearer SlAV32hkKG...ACCESSTOKEN...
     Accept: application/service-catalog+json
@@ -1184,6 +1193,8 @@ Specification Document(s): This document.
 
 Status: permanent
 
+Related Information: Identifies a catalog metadata document ({{catalog-metadata}}), a JSON object whose `service_catalog_endpoint` member names the per-user Service Catalog Endpoint. The well-known URI does not itself return the per-user catalog.
+
 ## Service Catalog Service Type Registry {#iana-service-type}
 
 IANA is requested to establish the "Service Catalog Service Type" registry for values of the `type` member of a service object ({{service-object}}). The registration policy is Specification Required. Each registration contains the type value, a brief description, any service-type-specific members it defines, and a reference. Values are case-sensitive strings of printable ASCII characters without whitespace. Initial contents:
@@ -1272,6 +1283,7 @@ Reference: This document.
 
 -01
 
+* Redefined the `/.well-known/service-catalog` URI as a cacheable, host-level catalog metadata document whose `service_catalog_endpoint` member names the per-user Service Catalog Endpoint, rather than serving the per-user catalog at the well-known path itself. This matches the cacheable-metadata convention of other well-known URIs and keeps the authenticated, per-user catalog at a separate endpoint. The authorization server metadata value remains the primary discovery mechanism.
 * Titled the document "Per-User Service Connectivity Catalog", naming the artifact the document is built around (the catalog, matching the registered `service-catalog` media type, well-known URI, and metadata), with "service connectivity discovery" retained as the protocol that produces it. Repositioned around per-user, authorization-aware connectivity.
 * Rewrote the abstract into three short paragraphs reflecting the matured scope: broadened consumers beyond agents, credential-based and launch-style (single sign-on) connection methods, and the enterprise SSO application catalog superset. Opened the introduction client-first with the autonomous agent as the leading example.
 * Trimmed the introduction: removed the "deliberately general" bullet list, which sat before the Minimal Core and overlapped it and the guiding principle, and folded the distinctive capabilities (capability-based discovery, first-class MCP/A2A, intent-scoped planning) into a short paragraph after the Minimal Core.
