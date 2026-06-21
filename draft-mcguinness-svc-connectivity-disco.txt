@@ -4,8 +4,8 @@
 
 Network Working Group                                      K. McGuinness
 Internet-Draft                                               Independent
-Intended status: Standards Track                            20 June 2026
-Expires: 22 December 2026
+Intended status: Standards Track                            21 June 2026
+Expires: 23 December 2026
 
 
                 Per-User Service Connectivity Discovery
@@ -46,7 +46,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 22 December 2026.
+   This Internet-Draft will expire on 23 December 2026.
 
 Copyright Notice
 
@@ -112,6 +112,7 @@ Table of Contents
      9.6.  Trust Requirements for Autonomous Clients
      9.7.  Confused Deputy and Client Registration
      9.8.  Authorization Server Mix-Up
+     9.9.  Launch-Style Single Sign-On
    10. Privacy Considerations
    11. IANA Considerations
      11.1.  OAuth Authorization Server Metadata
@@ -393,13 +394,13 @@ Table of Contents
    4.  Select a connection method (Section 5.6).
 
    5.  Establish trust in the selected connection as its profile
-       requires, before obtaining a credential (for the oauth profile,
-       this means re-anchoring trust to the resource's metadata)
-       (Section 5.7).
+       requires (for the oauth profile, this means re-anchoring trust to
+       the resource's metadata) (Section 5.7).
 
-   6.  Obtain the credential for the selected connection (Section 6).
-
-   7.  Call the service, presenting the credential (Section 6).
+   6.  Connect (Section 6).  For a credential-based connection, obtain
+       the credential and call the service presenting it.  For a launch-
+       style connection (sso or portal), open the connection's
+       launch_uri in a user agent.
 
 4.  The Service Catalog Endpoint
 
@@ -682,7 +683,7 @@ Table of Contents
       The basis is provider-defined and may combine, for example,
       authorization server policy, enterprise administrator policy, the
       user's account state, and the service provider's registration
-      state; this document does not mandate a particular basis.
+      state.  This document does not mandate a particular basis.
 
    *  Runtime authorization: whether a given call will actually succeed.
       This decision belongs to the service and its authorization server,
@@ -1066,11 +1067,13 @@ Table of Contents
 
 5.6.  Connection Object
 
-   A connection object describes one connection method for a service,
-   separating two layers: how the client _acquires_ a credential and how
-   it _presents_ that credential when calling the service.  A connection
-   object MUST carry enough information for the client either to execute
-   the connection directly or to deterministically fetch the remaining
+   A connection object describes one connection method for a service.
+   For a credential-based method it separates two layers: how the client
+   _acquires_ a credential and how it _presents_ that credential when
+   calling the service.  A launch-style method instead carries a
+   launch_uri the user agent opens (Section 5.7.4).  A connection object
+   MUST carry enough information for the client either to execute the
+   connection directly or to deterministically fetch the remaining
    information it needs.  Heavy or detailed metadata (for example, the
    full authorization server metadata document) is referenced by URL
    rather than inlined.
@@ -1639,10 +1642,29 @@ Table of Contents
 
    An sso connection is completed by opening launch_uri in a user agent,
    not by the client obtaining a token.  The present member
-   (Section 5.6) does not apply.  A status of connected means the
-   application is assigned to, or provisioned for, the user.  Because
-   access is browser-mediated, an sso connection is launchable on the
-   user's behalf but is not programmatically callable by the client.
+   (Section 5.6) does not apply.  Because access is browser-mediated, an
+   sso connection is launchable on the user's behalf but is not
+   programmatically callable by the client.
+
+   For a launch-style connection, access is always browser-mediated, so
+   the status vocabulary describes assignment and sign-on readiness
+   rather than credential acquisition:
+
+   *  connected: the application is assigned to, or provisioned for, the
+      user and is ready to launch.
+
+   *  consent_required: launch will require interactive sign-on or
+      consent the user has not yet completed.
+
+   *  available: the application can be launched, but the provider does
+      not distinguish a prior relationship.
+
+   *  unavailable: the application is known but cannot currently be
+      launched.
+
+   Here available and consent_required differ in whether interactive
+   sign-on is expected, not in whether a browser is involved, since
+   every launch uses the user's user agent.
 
    Before launch, the client MUST establish the identity of the
    application and of the launch_uri from a trusted source
@@ -1659,9 +1681,10 @@ Table of Contents
    manager.  It is the catalog equivalent of a single sign-on bookmark
    tile.  Its only member is launch_uri, a URI the user agent opens.
    Like sso, a portal connection is browser-mediated and launchable on
-   the user's behalf, the present member does not apply, and the client
-   MUST establish the identity of the launch_uri from a trusted source
-   before launch (Section 9.6).
+   the user's behalf, the present member does not apply, the launch-
+   style status semantics above apply, and the client MUST establish the
+   identity of the launch_uri from a trusted source before launch
+   (Section 9.6).
 
 5.7.6.  Public Service Profile
 
@@ -1992,7 +2015,7 @@ Table of Contents
 
 7.  Intent-Based Use and Resource Discovery
 
-   An agent typically uses the catalog to plan: it discovers the
+   A client typically uses the catalog to plan: it discovers the
    services a user can reach, decides which it needs for the user's
    goal, and requests only the access that goal requires.  The catalog's
    role here is bounded.  It provides the candidate services (filterable
@@ -2141,14 +2164,14 @@ Table of Contents
    It operates at a different, complementary layer.  It is public,
    crawlable, and pre-invocation, anchoring trust in a signed publisher
    identity and delegating authentication to each artifact's native
-   protocol; the catalog defined here is per-user, authenticated, and
-   (for the reasons in Section 10) deliberately not crawlable, anchoring
-   trust in the user's identity provider and in re-anchoring each
-   connection to the resource's metadata (Section 5.7.1), and
-   contributing the layer the former leaves open: which services a
-   specific user and client can reach, and how each connection's
-   credential is acquired and presented.  A service object's optional
-   uid (Section 5.2) lets a client correlate one service across the two.
+   protocol.  The catalog defined here is per-user, authenticated, and
+   (for the reasons in Section 10) deliberately not crawlable.  It
+   anchors trust in the user's identity provider and in re-anchoring
+   each connection to the resource's metadata (Section 5.7.1).  It
+   contributes the layer the former leaves open: which services a
+   specific user and client can reach, and how each connection is
+   established.  A service object's optional uid (Section 5.2) lets a
+   client correlate one service across the two.
 
    Several of the above are evolving specifications: A2A [A2A], MCP
    Server Cards [MCP-SERVER-CARD], and [RAR-METADATA] are referenced
@@ -2361,6 +2384,33 @@ Table of Contents
    OAuth security best practice.  Re-anchoring each connection's
    authorization_server to the resource's Protected Resource Metadata
    (Section 5.7.1) further reduces this risk.
+
+9.9.  Launch-Style Single Sign-On
+
+   A launch-style connection (Section 5.7.4, Section 5.7.5) directs a
+   user agent to a catalog-supplied launch_uri, and carries the web
+   single sign-on risks of that flow:
+
+   *  The launch_uri, and any relay_state or target_link_uri, are
+      catalog-supplied and untrusted.  A client MUST confirm the
+      launch_uri against a trusted source before opening it
+      (Section 9.6).  It MUST NOT allow a catalog-supplied relay_state
+      or target_link_uri to drive an open redirect or a deep link
+      outside the intended application.
+
+   *  A launch_uri may invoke identity-provider-initiated sign-on, which
+      accepts an unsolicited assertion and lacks the request-to-response
+      binding of a service-provider-initiated flow.  A client SHOULD
+      prefer service-provider-initiated sign-on where the application
+      supports it.
+
+   *  The flow completes in the user's own user agent and establishes a
+      session for the user, not for the client.  A client MUST NOT treat
+      completion as a credential it holds or can replay.
+
+   Protocol-level mitigations are defined by the relevant single sign-on
+   specification ([OPENID-CONNECT] and the SAML specifications).  This
+   document does not restate them.
 
 10.  Privacy Considerations
 
@@ -2868,6 +2918,14 @@ Document History
       client trust list includes launch-style connections.  Renamed the
       proxy object's endpoint member to uri to avoid overloading the
       service endpoint name.
+
+   *  Hardened launch-style single sign-on after expert review: added a
+      Security Considerations subsection on launch-style risks
+      (untrusted launch_uri/relay_state, identity-provider-initiated
+      sign-on, completion in the user's user agent), defined the status
+      vocabulary for launch-style connections, and finished generalizing
+      the overview and connection-object framing to cover launch-style
+      alongside credential acquisition.
 
    *  Added launch-style connection profiles so the catalog is a
       superset of an enterprise single sign-on application catalog.  The
