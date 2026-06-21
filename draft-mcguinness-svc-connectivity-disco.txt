@@ -8,28 +8,35 @@ Intended status: Standards Track                            21 June 2026
 Expires: 23 December 2026
 
 
-                Per-User Service Connectivity Discovery
+                 Per-User Service Connectivity Catalog
              draft-mcguinness-svc-connectivity-disco-latest
 
 Abstract
 
-   This specification defines per-user service connectivity discovery: a
-   standardized answer to the question "which services can this user and
-   client connect to right now, and how?"  Existing discovery describes
-   services but does not reflect the per-user, per-client authorization
-   decisions that determine what is actually reachable.  A client (such
-   as an autonomous agent) makes a single authenticated request to the
-   Service Catalog Endpoint (discovered from the user's identity
-   provider metadata after sign-in) and receives, scoped to that user,
-   the reachable services that match its request, each with one or more
-   connection methods.  Each connection method separates three concerns
-   that existing mechanisms tend to collapse: discovering the service,
-   acquiring a credential (for example, via OAuth 2.0 Token Exchange or
-   the authorization code grant), and presenting that credential (for
-   example, a bearer token, an API key, or mutual TLS).  OAuth 2.0 is
-   not assumed.  A service may be an HTTP API, a Model Context Protocol
-   (MCP) server, or an Agent2Agent (A2A) agent, and an agent can use the
-   catalog to plan intent-scoped access before requesting any token.
+   This specification defines a per-user service connectivity catalog: a
+   standardized, authorization-aware answer to the question "which
+   services can this user and client connect to right now, and how?"
+   Existing discovery describes individual services but does not reflect
+   the per-user, per-client authorization decisions that determine what
+   is actually reachable.
+
+   A client, such as an autonomous agent, a command-line tool, an SDK,
+   or an application launcher, makes a single authenticated request to
+   the Service Catalog Endpoint, discovered from the user's identity
+   provider metadata after sign-in, and receives the reachable services
+   that match its request.  Each service carries descriptive metadata
+   and one or more connection methods.  A connection method says how to
+   connect.  It describes how a credential is acquired and presented
+   (for example, by OAuth 2.0 token exchange or the authorization code
+   grant, an API key, or mutual TLS), or how a browser single sign-on is
+   launched.  OAuth 2.0 is not assumed.
+
+   A service may be an HTTP API, a Model Context Protocol (MCP) server,
+   or an Agent2Agent (A2A) agent, and a connection may obtain a
+   credential or launch a browser single sign-on.  The catalog can
+   therefore serve as a machine-readable, connection-aware superset of
+   an enterprise single sign-on application catalog.  A client can plan
+   intent-scoped access before requesting any token.
 
 Status of This Memo
 
@@ -132,16 +139,16 @@ Table of Contents
 
 1.  Introduction
 
-   An autonomous agent acting on behalf of a user needs a basic answer
-   before it can do useful work: _which services can this user and
-   client connect to right now, and how is each connection established?_
-   Today there is no standardized, authorization-aware answer.  Service
-   inventories live in static configuration, proprietary catalogs, or
-   human documentation, and connection details are discovered
-   reactively, one service at a time after an authorization failure.
-   Static configuration in particular cannot reflect the per-user and
-   per-client authorization decisions that determine what is actually
-   reachable at a given moment.
+   A client acting on behalf of a user, often an autonomous agent, needs
+   a basic answer before it can do useful work: _which services can this
+   user and client connect to right now, and how is each connection
+   established?_ Today there is no standardized, authorization-aware
+   answer.  Service inventories live in static configuration,
+   proprietary catalogs, or human documentation, and connection details
+   are discovered reactively, one service at a time after an
+   authorization failure.  Static configuration in particular cannot
+   reflect the per-user and per-client authorization decisions that
+   determine what is actually reachable at a given moment.
 
    Existing discovery mechanisms describe services.  They do not say
    which services a particular user and client may reach, nor how to
@@ -160,10 +167,11 @@ Table of Contents
    generalizes that idea across connection mechanisms, and a client that
    only needs token exchange can use the catalog as a superset of it.
 
-   This specification defines per-user *service connectivity discovery*.
-   A client makes a single authenticated request to the *Service Catalog
-   Endpoint*, scoped to the capability or service it needs, and receives
-   the matching reachable services for that user.  Each comes with the
+   This specification defines the per-user *service connectivity
+   catalog* and the discovery protocol that produces it.  A client makes
+   a single authenticated request to the *Service Catalog Endpoint*,
+   scoped to the capability or service it needs, and receives the
+   matching reachable services for that user.  Each comes with the
    descriptive metadata to understand it and one or more *connection
    methods* to connect to it.  The document returned is the _catalog_.
    The server that produces it is the *Catalog Provider*, which MAY
@@ -2897,9 +2905,19 @@ Document History
 
    -01
 
-   *  Retitled to "Per-User Service Connectivity Discovery" and
-      repositioned around per-user, authorization-aware connectivity
-      discovery.
+   *  Titled the document "Per-User Service Connectivity Catalog",
+      naming the artifact the document is built around (the catalog,
+      matching the registered service-catalog media type, well-known
+      URI, and metadata), with "service connectivity discovery" retained
+      as the protocol that produces it.  Repositioned around per-user,
+      authorization-aware connectivity.
+
+   *  Rewrote the abstract into three short paragraphs reflecting the
+      matured scope: broadened consumers beyond agents, credential-based
+      and launch-style (single sign-on) connection methods, and the
+      enterprise SSO application catalog superset.  Opened the
+      introduction client-first with the autonomous agent as the leading
+      example.
 
    *  Renamed the service object's base_uri member to endpoint, a type-
       neutral name that reads correctly for http, mcp, and a2a services,
