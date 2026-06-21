@@ -420,7 +420,7 @@ Table of Contents
        used to convey the catalog endpoint or its contents (see
        Section 10).
 
-   2.  Read the issuer metadata.  The client fetches the issuer's
+   2.  Read the discovery metadata.  The client fetches the issuer's
        authorization server metadata [RFC8414] (an OpenID Connect
        deployment uses the OpenID Provider configuration, which reuses
        the same metadata registry) and reads the
@@ -478,7 +478,10 @@ Table of Contents
       absolute HTTPS URL, with no fragment component, of the per-user
       Service Catalog Endpoint (Section 4.2).  This is the same value an
       authorization server MAY advertise in its metadata (Section 11.1).
-      When both are present, they MUST be consistent.
+      When both are present, they MUST be consistent.  Because this
+      document and the authorization server metadata are public, this
+      URL MUST NOT encode per-user information.  The catalog is scoped
+      by the access token, not by the URL (Section 4.2).
 
    A catalog metadata document MAY include additional members describing
    the catalog service.  Clients MUST ignore members they do not
@@ -2439,9 +2442,10 @@ Table of Contents
 
    Several requirements in this document reduce to one question: may the
    client trust an authorization server, or a resource, that it did not
-   know in advance?  They include re-anchoring an oauth connection,
-   gating dynamic client registration (Section 9.7), and trusting the
-   authorization_server of an audience-only connection (Section 5.7.1).
+   know in advance?  They include re-anchoring an oauth connection
+   (Section 5.7.1), gating dynamic client registration (Section 9.7),
+   and trusting the authorization_server of an audience-only connection
+   (Section 5.7.1).
 
    A deployment MAY discharge that decision through a _trust framework_:
    a shared, verifiable basis for trusting parties a client did not know
@@ -2511,14 +2515,16 @@ Table of Contents
    affiliations, tenant memberships, and the user's relationships to
    third-party services.  To protect privacy:
 
-   *  The catalog, and any per-user catalog endpoint URL, MUST be
-      obtained through an authenticated channel (Section 4.1).  In
-      particular, WebFinger [RFC7033] MUST NOT be used to convey the
-      catalog endpoint or its contents: WebFinger responses are
-      unauthenticated and, by design, broadly accessible (including
-      cross-origin), so publishing the set of services a user can reach
-      there would disclose personal data to anyone.  WebFinger is used
-      only to resolve a user identifier to an issuer.
+   *  The catalog contents MUST be obtained through an authenticated
+      channel (Section 4.1).  The Service Catalog Endpoint URL is host-
+      level and MAY appear in public metadata (Section 4.1.1).  A per-
+      user-specific endpoint URL would itself be personal data and MUST
+      NOT be published.  In particular, WebFinger [RFC7033] MUST NOT be
+      used to convey the catalog endpoint or its contents: WebFinger
+      responses are unauthenticated and, by design, broadly accessible
+      (including cross-origin), so publishing the set of services a user
+      can reach there would disclose personal data to anyone.  WebFinger
+      is used only to resolve a user identifier to an issuer.
 
    *  The Catalog Provider SHOULD return only information the
       authenticated user and client are authorized to know, applying the
@@ -3017,6 +3023,12 @@ Table of Contents
 Document History
 
    -01
+
+   *  Clarified that the discoverable Service Catalog Endpoint URL is
+      host-level and MUST NOT encode per-user information (the catalog
+      is scoped by the access token, not the URL), reconciling its
+      publication in public metadata with the privacy requirement that
+      per-user data stay on an authenticated channel.
 
    *  Sharpened the positioning against per-ecosystem registries (for
       example, the Model Context Protocol registry): the catalog is the
