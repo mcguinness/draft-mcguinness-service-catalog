@@ -88,6 +88,10 @@ informative:
     title: "OpenID Connect Core 1.0 incorporating errata set 2"
     target: https://openid.net/specs/openid-connect-core-1_0.html
     date: 2023
+  OPENID-FEDERATION:
+    title: "OpenID Federation 1.0"
+    target: https://openid.net/specs/openid-federation-1_0.html
+    date: 2025
   ARD:
     title: "Agentic Resource Discovery"
     target: https://agenticresourcediscovery.org/
@@ -1038,6 +1042,8 @@ Rich Authorization Requests {{RFC9396}} and its metadata extension {{RAR-METADAT
 
 Grant Negotiation and Authorization Protocol (GNAP) {{RFC9635}} negotiates the access a client declares it wants at a single grant endpoint. Its intent is client-declared, not a server-advertised enumeration of what a user can reach. A catalog entry's `id` and connection values name what a client can subsequently request, whether by token exchange, an OAuth grant, or a GNAP access request.
 
+OpenID Federation {{OPENID-FEDERATION}} establishes trust among many entities through verifiable trust chains and trust marks, and can automate client registration. It is one way to discharge the trust decisions this document requires when a client connects to authorization servers it did not know in advance ({{trust-frameworks}}). The catalog enumerates what is reachable, while the federation supplies the basis for trusting it.
+
 User-Managed Access (UMA 2.0) {{UMA2}} lets a resource owner share resources with other parties. Its resource registration is resource-server-to-authorization-server and is not client-facing, and its resource list is a synchronization aid rather than a browsable, per-user catalog. The catalog fills that client-facing gap.
 
 Agent and tool descriptors (A2A Agent Cards {{A2A}}, MCP Server Cards {{MCP-SERVER-CARD}}, and machine-readable API descriptions such as OpenAPI {{OPENAPI}}) describe a single service instance, including its capabilities and how it authenticates callers. The catalog references these (via `links`) rather than duplicating them, and adds the per-user authorization context they lack.
@@ -1108,11 +1114,21 @@ For an `oauth` connection, the *minimum technical checks* an autonomous client a
 
 When an `oauth` connection's `client_registration` is `dynamic` ({{RFC7591}}), the client registers with an authorization server it may not have known in advance, and registration happens before any token is obtained. This is the same gate referenced in the connection procedure ({{connecting}}, step 3), and is consistent with the confused-deputy guidance in {{MCP-AUTHORIZATION}}. The following apply:
 
-* A client MUST gate dynamic registration on a trust policy, rather than registering automatically. The policy can be an allowlist of acceptable issuers, membership in a trust framework, an issuer-matching policy, or explicit user or administrator confirmation.
+* A client MUST gate dynamic registration on a trust policy, rather than registering automatically. The policy can be an allowlist of acceptable issuers, membership in a trust framework ({{trust-frameworks}}), an issuer-matching policy, or explicit user or administrator confirmation.
 * An autonomous client, which typically has no site-specific policy, MUST NOT auto-register with a catalog-discovered authorization server absent such a policy or confirmation.
 * Before registering, the client SHOULD re-anchor the connection's `authorization_server` to the resource's Protected Resource Metadata ({{profile-oauth}}), so that it does not disclose client metadata to an authorization server it has not verified.
 
 The Client ID Metadata Document mechanism ({{CIMD}}) is a lighter-weight alternative to dynamic registration: it makes no registration write and yields no client secret. The client still presents its `client_id` URL to a catalog-discovered authorization server, which then dereferences it, so the same re-anchoring SHOULD precede its use.
+
+## Trust Frameworks {#trust-frameworks}
+
+Several requirements in this document reduce to one question: may the client trust an authorization server, or a resource, that it did not know in advance? They include re-anchoring an `oauth` connection, gating dynamic client registration ({{confused-deputy}}), and trusting the `authorization_server` of an audience-only connection ({{profile-oauth}}).
+
+A deployment MAY discharge that decision through a *trust framework*: a shared, verifiable basis for trusting parties a client did not know in advance. This document neither defines nor mandates one. A trust framework may be as simple as a static issuer allowlist or an enterprise trust policy, or a standardized framework such as OpenID Federation {{OPENID-FEDERATION}}, which provides verifiable trust chains and trust marks and can also automate client registration.
+
+Where the client and the relevant authorization servers participate in such a framework, the client uses it to satisfy the trust gates above. For OpenID Federation in particular, a verified trust chain satisfies the dynamic-registration gate of {{confused-deputy}}, and the client MAY register through the framework rather than by plain {{RFC7591}}.
+
+This adds no framework-specific members to the catalog. A client resolves framework membership and trust through the framework's own mechanisms, then re-anchors as in {{profile-oauth}}. The trust framework, where one exists, supplies the basis for trusting the servers a connection names. The catalog's role is unchanged.
 
 ## Authorization Server Mix-Up
 
@@ -1283,6 +1299,7 @@ Reference: This document.
 
 -01
 
+* Added a Trust Frameworks security section that lets a deployment discharge the document's trust decisions (re-anchoring, the dynamic-registration gate, audience-only authorization-server trust) through a pluggable trust framework, with OpenID Federation as a worked example and a Relationship to Other Work entry. This adds no catalog members or registries; a client resolves framework trust through the framework's own mechanisms.
 * Redefined the `/.well-known/service-catalog` URI as a cacheable, host-level catalog metadata document whose `service_catalog_endpoint` member names the per-user Service Catalog Endpoint, rather than serving the per-user catalog at the well-known path itself. This matches the cacheable-metadata convention of other well-known URIs and keeps the authenticated, per-user catalog at a separate endpoint. The authorization server metadata value remains the primary discovery mechanism.
 * Titled the document "Per-User Service Connectivity Catalog", naming the artifact the document is built around (the catalog, matching the registered `service-catalog` media type, well-known URI, and metadata), with "service connectivity discovery" retained as the protocol that produces it. Repositioned around per-user, authorization-aware connectivity.
 * Rewrote the abstract into three short paragraphs reflecting the matured scope: broadened consumers beyond agents, credential-based and launch-style (single sign-on) connection methods, and the enterprise SSO application catalog superset. Opened the introduction client-first with the autonomous agent as the leading example.
